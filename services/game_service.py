@@ -35,3 +35,13 @@ class GameService:
         self.game_status[game_code] = status
         
         return game
+
+    def get_game_info(self, game_code: str):
+        if game_code not in self.games:
+            raise ValueError(f"Game not found: {game_code}")
+            
+        return {
+            "game": self.games[game_code],
+            "settings": self.game_settings[game_code],
+            "status": self.game_status[game_code]
+        }

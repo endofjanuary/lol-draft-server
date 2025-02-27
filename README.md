@@ -320,3 +320,77 @@ playerType에 따른 position 제한:
       "error": "Failed to create game"
     }
     ```
+
+### Get Game Information
+
+게임 코드에 해당하는 게임의 모든 정보를 조회합니다.
+
+- **URL**: `/games/{game_code}`
+- **Method**: `GET`
+- **URL Parameters**:
+
+  - `game_code`: 8자리 게임 코드
+
+- **Response**: GameInfo
+
+```json
+// Response Example (200 OK)
+{
+  "game": {
+    "gameCode": "a1b2c3d4",
+    "createdAt": 1740663081873
+  },
+  "settings": {
+    "version": "14.10.1",
+    "draftType": "tournament",
+    "playerType": "5v5",
+    "matchFormat": "bo3",
+    "timeLimit": true
+  },
+  "status": {
+    "phase": 0,
+    "blueTeamName": "Blue",
+    "redTeamName": "Red",
+    "lastUpdatedAt": 1740663081873,
+    "phaseData": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    "setNumber": 1
+  }
+}
+```
+
+- **Error Responses**:
+  - `404 Not Found`: 게임을 찾을 수 없음
+    ```json
+    {
+      "error": "Game not found: a1b2c3d4"
+    }
+    ```
+  - `500 Internal Server Error`: 서버 오류
+    ```json
+    {
+      "error": "Failed to get game info"
+    }
+    ```
