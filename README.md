@@ -182,3 +182,49 @@ results 배열의 각 요소는 GameStatus의 phaseData와 동일한 형식을 �
   3. 다음 세트 진행을 위해 GameStatus의 phase를 0으로 초기화
 
 </details>
+
+---
+
+### Client
+
+| Name     | Type   | Description                                              |
+| -------- | ------ | -------------------------------------------------------- |
+| socketId | string | Socket.IO가 생성한 고유 클라이언트 ID                    |
+| gameCode | string | 접속한 게임의 코드                                       |
+| position | string | 클라이언트의 포지션 ("spectator" / "blue1-5" / "red1-5") |
+| joinedAt | number | 게임 접속 시점의 nanosecond값                            |
+
+```json
+// example
+{
+  "socketId": "wYD7MX_3qPxLvxlWAAAB",
+  "gameCode": "12345678",
+  "position": "blue1",
+  "joinedAt": 1740663081873
+}
+```
+
+<details>
+<summary>Position 상세 설명</summary>
+
+position은 다음 값들 중 하나를 가집니다:
+
+- "spectator": 관전자
+- "blue1": 블루팀 1번 플레이어
+- "blue2": 블루팀 2번 플레이어
+- "blue3": 블루팀 3번 플레이어
+- "blue4": 블루팀 4번 플레이어
+- "blue5": 블루팀 5번 플레이어
+- "red1": 레드팀 1번 플레이어
+- "red2": 레드팀 2번 플레이어
+- "red3": 레드팀 3번 플레이어
+- "red4": 레드팀 4번 플레이어
+- "red5": 레드팀 5번 플레이어
+
+playerType에 따른 position 제한:
+
+- "single": position은 항상 "all" (블루팀과 레드팀 모두를 담당)
+- "1v1": "blue1"과 "red1"만 사용
+- "5v5": 모든 포지션 사용 가능
+
+</details>
