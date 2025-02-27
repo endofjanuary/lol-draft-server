@@ -2,6 +2,51 @@
 
 ---
 
+## Getting Started
+
+### Prerequisites
+
+- Python 3.8 이상
+- pip (Python 패키지 관리자)
+
+### Installation & Setup
+
+1. 필요한 패키지 설치:
+
+```bash
+pip install -r requirements.txt
+```
+
+### Running the Server
+
+다음 명령어들을 통해 서버를 실행할 수 있습니다:
+
+1. 개발 모드로 실행 (자동 리로드):
+
+```bash
+python run.py --reload
+```
+
+2. 특정 호스트와 포트로 실행:
+
+```bash
+python run.py --host 0.0.0.0 --port 8080
+```
+
+3. 프로덕션 모드로 실행:
+
+```bash
+python run.py --host 0.0.0.0
+```
+
+서버가 실행되면 다음 주소에서 접근 가능합니다:
+
+- 개발 환경: http://127.0.0.1:8000
+- API 문서 (Swagger UI): http://127.0.0.1:8000/docs
+- API 문서 (ReDoc): http://127.0.0.1:8000/redoc
+
+---
+
 ## Models
 
 ### Game
@@ -228,3 +273,50 @@ playerType에 따른 position 제한:
 - "5v5": 모든 포지션 사용 가능
 
 </details>
+
+---
+
+## API Documentation
+
+### Create Game
+
+새로운 게임을 생성하고 초기화합니다.
+
+- **URL**: `/games`
+- **Method**: `POST`
+- **Request Body**: GameSetting
+
+```json
+// Request Body Example
+{
+  "version": "14.10.1",
+  "draftType": "tournament",
+  "playerType": "5v5",
+  "matchFormat": "bo3",
+  "timeLimit": true
+}
+```
+
+- **Response**: Game
+
+```json
+// Response Example (200 OK)
+{
+  "gameCode": "a1b2c3d4",
+  "createdAt": 1740663081873
+}
+```
+
+- **Error Responses**:
+  - `400 Bad Request`: 잘못된 request body 형식
+    ```json
+    {
+      "error": "Invalid request body: matchFormat must be one of: bo1, bo3, bo5"
+    }
+    ```
+  - `500 Internal Server Error`: 서버 오류
+    ```json
+    {
+      "error": "Failed to create game"
+    }
+    ```
