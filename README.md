@@ -39,3 +39,81 @@
   "timeLimit": true
 }
 ```
+
+### GameStatus
+
+| Name          | Type     | Description                                     |
+| ------------- | -------- | ----------------------------------------------- |
+| phase         | number   | 0~21 사이의 정수 (현재 진행중인 phase)          |
+| blueTeamName  | string   | 블루팀 이름 (default: "Blue")                   |
+| redTeamName   | string   | 레드팀 이름 (default: "Red")                    |
+| lastUpdatedAt | number   | 데이터가 마지막으로 수정된 시점의 nanosecond 값 |
+| phaseData     | string[] | 22개의 문자열을 담은 배열 (각 phase별 데이터)   |
+| setNumber     | number   | 1~5사이의 정수 (현재 진행중인 세트 번호)        |
+
+```json
+// example
+{
+  "phase": 12,
+  "blueTeamName": "T1",
+  "redTeamName": "GEN",
+  "lastUpdatedAt": 1740663081873,
+  "phaseData": [
+    "ready", // phase 0: 게임 시작 전 준비상태
+    "266", // phase 1: 블루1밴 (아트록스)
+    "236", // phase 2: 레드1밴
+    "875", // phase 3: 블루2밴
+    "875", // phase 4: 레드2밴
+    "234", // phase 5: 블루3밴
+    "61", // phase 6: 레드3밴
+    "122", // phase 7: 블루1픽
+    "157", // phase 8: 레드1픽
+    "51", // phase 9: 레드2픽
+    "51", // phase 10: 블루2픽
+    "25", // phase 11: 블루3픽
+    "102", // phase 12: 레드3픽
+    "", // phase 13: 레드4밴
+    "", // phase 14: 블루4밴
+    "", // phase 15: 레드5밴
+    "", // phase 16: 블루5밴
+    "", // phase 17: 레드4픽
+    "", // phase 18: 블루4픽
+    "", // phase 19: 블루5픽
+    "", // phase 20: 레드5픽
+    "" // phase 21: 승리 팀
+  ],
+  "setNumber": 1
+}
+```
+
+#### Phase 상세 설명
+
+각 phase는 아래 상황을 의미하며, 0에서 21까지 순차적으로 진행됩니다.
+bo3이나 bo5에서 다음 세트로 넘어갈 때마다 phase는 21에서 0으로 초기화됩니다.
+
+- phase 0: 게임 세트 시작전 대기상황
+- phase 1-6: 1차 밴픽 페이즈 (각 팀 3밴)
+  - 1: 블루1밴
+  - 2: 레드1밴
+  - 3: 블루2밴
+  - 4: 레드2밴
+  - 5: 블루3밴
+  - 6: 레드3밴
+- phase 7-12: 1차 픽 페이즈
+  - 7: 블루1픽
+  - 8: 레드1픽
+  - 9: 레드2픽
+  - 10: 블루2픽
+  - 11: 블루3픽
+  - 12: 레드3픽
+- phase 13-16: 2차 밴픽 페이즈 (각 팀 2밴)
+  - 13: 레드4밴
+  - 14: 블루4밴
+  - 15: 레드5밴
+  - 16: 블루5밴
+- phase 17-20: 2차 픽 페이즈
+  - 17: 레드4픽
+  - 18: 블루4픽
+  - 19: 블루5픽
+  - 20: 레드5픽
+- phase 21: 게임 세트 종료 후 승리 팀 기록 ("blue" 또는 "red")
