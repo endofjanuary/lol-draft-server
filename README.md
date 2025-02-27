@@ -394,3 +394,22 @@ playerType에 따른 position 제한:
       "error": "Failed to get game info"
     }
     ```
+
+## Upcoming Features (feature/socket-draft)
+
+### Real-time Draft System
+
+Socket.IO를 사용한 실시간 밴픽 시스템을 구현할 예정입니다:
+
+1. Socket.IO Events
+
+   - 클라이언트 접속/연결 해제
+   - 게임 참가자 준비상태 변경
+   - 밴픽 선택/변경
+   - 게임 세트 승리 처리
+
+2. 구현 예정 기능
+   - 실시간 클라이언트 상태 관리
+   - 밴픽 단계별 권한 검증
+   - 타이머 시스템 (timeLimit이 true인 경우)
+   - 세트 종료 후 다음 세트 진행
