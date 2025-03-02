@@ -238,6 +238,7 @@ results 배열의 각 요소는 GameStatus의 phaseData와 동일한 형식을 �
 | gameCode | string | 접속한 게임의 코드                                       |
 | position | string | 클라이언트의 포지션 ("spectator" / "blue1-5" / "red1-5") |
 | joinedAt | number | 게임 접속 시점의 nanosecond값                            |
+| nickname | string | 클라이언트의 닉네임                                      |
 
 ```json
 // example
@@ -245,7 +246,8 @@ results 배열의 각 요소는 GameStatus의 phaseData와 동일한 형식을 �
   "socketId": "wYD7MX_3qPxLvxlWAAAB",
   "gameCode": "12345678",
   "position": "blue1",
-  "joinedAt": 1740663081873
+  "joinedAt": 1740663081873,
+  "nickname": "Hide on bush"
 }
 ```
 
