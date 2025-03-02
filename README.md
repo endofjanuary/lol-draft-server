@@ -415,3 +415,149 @@ Socket.IO를 사용한 실시간 밴픽 시스템을 구현할 예정입니다:
    - 밴픽 단계별 권한 검증
    - 타이머 시스템 (timeLimit이 true인 경우)
    - 세트 종료 후 다음 세트 진행
+
+## Socket.IO Connection Guide
+
+### Server Endpoints
+
+Socket.IO 서버는 다음 주소에서 실행됩니다:
+
+- 개발 환경: `http://127.0.0.1:8000`
+- 프로덕션 환경: `http://<your-domain>`
+
+### Events
+
+#### 1. Connection Events
+
+- `connect`: 소켓 연결 시 자동으로 발생
+- `connection_success`: 서버에서 연결 성공 시 발생 (sid 정보 포함)
+- `disconnect`: 소켓 연결 해제 시 자동으로 발생
+
+#### 2. Game Events
+
+- `join_game`: 게임 참가 요청
+  - Request:
+    ```typescript
+    {
+      gameCode: string; // 참가할 게임의 코드
+      nickname: string; // 클라이언트의 닉네임
+    }
+    ```
+  - Response:
+    ```typescript
+    {
+      status: "success" | "error";
+      message: string;
+    }
+    ```
+
+### Frontend Implementation Example
+
+```javascript
+import { io } from "socket.io-client";
+
+// 소켓 연결 설정
+const socket = io("http://localhost:8000", {
+  transports: ["websocket"],
+  autoConnect: true,
+});
+
+// 연결 이벤트 리스너
+socket.on("connect", () => {
+  console.log("Socket connected");
+});
+
+socket.on("connection_success", (data) => {
+  console.log("Connection successful, sid:", data.sid);
+});
+
+socket.on("disconnect", () => {
+  console.log("Disconnected from server");
+});
+
+// 게임 참가 요청
+const joinGame = (gameCode, nickname) => {
+  socket.emit("join_game", { gameCode, nickname }, (response) => {
+    if (response.status === "success") {
+      console.log("Successfully joined game:", response.message);
+    } else {
+      console.error("Failed to join game:", response.message);
+    }
+  });
+};
+```
+
+### React Component Example
+
+```jsx
+import { useEffect, useState } from "react";
+import { io } from "socket.io-client";
+
+function GameClient({ gameCode, nickname }) {
+  const [socket, setSocket] = useState(null);
+  const [connected, setConnected] = useState(false);
+  const [socketId, setSocketId] = useState(null);
+
+  useEffect(() => {
+    const newSocket = io("http://localhost:8000", {
+      transports: ["websocket"],
+    });
+
+    newSocket.on("connect", () => {
+      console.log("Socket connected");
+    });
+
+    newSocket.on("connection_success", (data) => {
+      setConnected(true);
+      setSocketId(data.sid);
+
+      // 연결 성공 후 게임 참가
+      newSocket.emit("join_game", { gameCode, nickname }, (response) => {
+        console.log("Join game response:", response);
+      });
+    });
+
+    newSocket.on("disconnect", () => {
+      setConnected(false);
+      setSocketId(null);
+    });
+
+    setSocket(newSocket);
+
+    return () => newSocket.close();
+  }, [gameCode, nickname]);
+
+  return (
+    <div>
+      <h2>Game Client</h2>
+      <p>Connection status: {connected ? "Connected" : "Disconnected"}</p>
+      <p>Socket ID: {socketId || "Not connected"}</p>
+      <p>Game code: {gameCode}</p>
+      <p>Nickname: {nickname}</p>
+    </div>
+  );
+}
+```
+
+### Installation
+
+프론트엔드에서 Socket.IO 클라이언트 라이브러리를 설치해야 합니다:
+
+```bash
+# npm
+npm install socket.io-client
+
+# yarn
+yarn add socket.io-client
+
+# pnpm
+pnpm add socket.io-client
+```
+
+### Notes
+
+1. 서버는 루트 경로('/')에 마운트되어 있어 별도의 path 설정이 필요하지 않습니다
+2. 기본적으로 모든 origin에서의 접근이 허용됩니다 (개발 환경 기준)
+3. WebSocket transport를 사용하여 실시간 양방향 통신이 가능합니다
+4. 연결 성공 시 `connection_success` 이벤트를 통해 서버에서 socket id를 전달받습니다
+5. 프로덕션 환경에서는 보안을 위해 허용된 origin을 명시적으로 설정해야 합니다
