@@ -6,3 +6,4 @@ class Client(BaseModel):
     position: str
     joinedAt: int
     nickname: str
+    isReady: bool = False  # Default to not ready

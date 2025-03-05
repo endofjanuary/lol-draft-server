@@ -38,13 +38,14 @@
 
 ## Client
 
-| Name     | Type   | Description                                              |
-| -------- | ------ | -------------------------------------------------------- |
-| socketId | string | Socket.IO가 생성한 고유 클라이언트 ID                    |
-| gameCode | string | 접속한 게임의 코드                                       |
-| position | string | 클라이언트의 포지션 ("spectator" / "blue1-5" / "red1-5") |
-| joinedAt | number | 게임 접속 시점의 nanosecond값                            |
-| nickname | string | 클라이언트의 닉네임                                      |
+| Name     | Type    | Description                                              |
+| -------- | ------- | -------------------------------------------------------- |
+| socketId | string  | Socket.IO가 생성한 고유 클라이언트 ID                    |
+| gameCode | string  | 접속한 게임의 코드                                       |
+| position | string  | 클라이언트의 포지션 ("spectator" / "blue1-5" / "red1-5") |
+| joinedAt | number  | 게임 접속 시점의 nanosecond값                            |
+| nickname | string  | 클라이언트의 닉네임                                      |
+| isReady  | boolean | 클라이언트의 준비 상태 (true: 준비완료, false: 대기중)   |
 
 ## Phase 상세 설명
 
