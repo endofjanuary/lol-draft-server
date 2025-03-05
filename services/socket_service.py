@@ -136,6 +136,11 @@ class SocketService:
 
         return True  # For 'single' mode
 
+    def _can_confirm_selection(self, client: Client, phase: int, player_type: str) -> bool:
+        """Check if client can confirm selection in current phase"""
+        # Re-use existing turn validation logic
+        return self._is_clients_turn(client, phase, player_type)
+
     async def handle_connect(self, sid: str, environ):
         logger.debug(f"Client attempting to connect: {sid}")
         await self.sio.emit('connection_success', {'sid': sid}, room=sid)
@@ -302,6 +307,60 @@ class SocketService:
             logger.error(f"Error during champion selection: {str(e)}")
             return {"status": "error", "message": str(e)}
 
+    async def handle_confirm_selection(self, sid: str, data: dict):
+        """Handle champion selection confirmation and phase progression"""
+        try:
+            if sid not in self.clients:
+                return {"status": "error", "message": "Client not found"}
+
+            client = self.clients[sid]
+            game_code = client.gameCode
+
+            # Get game settings and status
+            game_settings = self.game_service.game_settings.get(game_code)
+            game_status = self.game_service.game_status.get(game_code)
+            
+            if not game_settings or not game_status:
+                return {"status": "error", "message": "Game not found"}
+
+            current_phase = game_status.phase
+
+            # Check if current phase is valid for progression
+            if current_phase >= 21:
+                return {"status": "error", "message": "Draft is already complete"}
+
+            # Check if it's client's turn to confirm
+            if not self._can_confirm_selection(client, current_phase, game_settings.playerType):
+                return {"status": "error", "message": "Not your turn to confirm"}
+
+            # Check if a champion is selected in current phase
+            if not game_status.phaseData[current_phase]:
+                return {"status": "error", "message": "No champion selected for current phase"}
+
+            # Update phase
+            game_status.phase = current_phase + 1
+            game_status.lastUpdatedAt = int(time.time() * 1000000)
+
+            # Save updated status
+            self.game_service.game_status[game_code] = game_status
+
+            # Broadcast phase progression to all clients in the game
+            await self.sio.emit('phase_progressed', {
+                'gameCode': game_code,
+                'confirmedBy': client.nickname,
+                'fromPhase': current_phase,
+                'toPhase': game_status.phase,
+                'confirmedChampion': game_status.phaseData[current_phase],
+                'timestamp': game_status.lastUpdatedAt
+            }, room=game_code)
+
+            logger.info(f"Phase progressed from {current_phase} to {game_status.phase} by {client.nickname}")
+            return {"status": "success", "message": "Phase progressed successfully"}
+
+        except Exception as e:
+            logger.error(f"Error during phase progression: {str(e)}")
+            return {"status": "error", "message": str(e)}
+
     async def handle_start_draft(self, sid: str, data: dict):
         """Handle draft start request"""
         try:
@@ -358,6 +417,7 @@ class SocketService:
         self.sio.on('change_position', self.handle_position_change)
         self.sio.on('change_ready_state', self.handle_ready_state)
         self.sio.on('select_champion', self.handle_champion_select)
+        self.sio.on('confirm_selection', self.handle_confirm_selection)
         self.sio.on('start_draft', self.handle_start_draft)
         
         return socketio.ASGIApp(self.sio)
