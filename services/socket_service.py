@@ -49,6 +49,93 @@ class SocketService:
             for client in self.clients.values()
         )
 
+    def _is_clients_turn(self, client: Client, phase: int, player_type: str) -> bool:
+        """Check if it's the client's turn based on phase and position"""
+        if player_type == "single":
+            return True
+
+        # Get team and position number from client position
+        if client.position == "spectator":
+            return False
+
+        team = client.position[:4]  # 'blue' or 'red'
+        position_num = int(client.position[4:])  # 1-5
+
+        # Phase ranges
+        BAN_PHASE_1 = range(1, 7)    # 1-6
+        PICK_PHASE_1 = range(7, 13)  # 7-12
+        BAN_PHASE_2 = range(13, 17)  # 13-16
+        PICK_PHASE_2 = range(17, 21) # 17-20
+
+        # Ban phases - only team captain (position 1) can ban
+        if phase in BAN_PHASE_1 or phase in BAN_PHASE_2:
+            if position_num != 1:
+                return False
+
+        # Map phase to team and position
+        phase_map = {
+            # First ban phase (1-6)
+            1: ("blue", 1), 2: ("red", 1), 3: ("blue", 1),
+            4: ("red", 1), 5: ("blue", 1), 6: ("red", 1),
+            # First pick phase (7-12)
+            7: ("blue", 1), 8: ("red", 1), 9: ("red", 2),
+            10: ("blue", 2), 11: ("blue", 3), 12: ("red", 3),
+            # Second ban phase (13-16)
+            13: ("red", 1), 14: ("blue", 1), 15: ("red", 1), 16: ("blue", 1),
+            # Second pick phase (17-20)
+            17: ("red", 4), 18: ("blue", 4), 19: ("blue", 5), 20: ("red", 5)
+        }
+
+        if phase not in phase_map:
+            return False
+
+        required_team, required_pos = phase_map[phase]
+        
+        if player_type == "1v1":
+            # In 1v1, any position can act when it's their team's turn
+            return team == required_team
+        else:  # 5v5
+            return team == required_team and position_num == required_pos
+
+    def _is_host(self, client: Client) -> bool:
+        """Check if client is the host (earliest joinedAt in the game)"""
+        game_clients = [
+            c for c in self.clients.values()
+            if c.gameCode == client.gameCode
+        ]
+        if not game_clients:
+            return False
+        return client.joinedAt == min(c.joinedAt for c in game_clients)
+
+    def _are_all_players_ready(self, game_code: str, player_type: str) -> bool:
+        """Check if all required positions are filled and ready"""
+        game_clients = [
+            client for client in self.clients.values()
+            if client.gameCode == game_code and client.position != 'spectator'
+        ]
+
+        if player_type == "1v1":
+            # Need exactly one blue and one red player
+            blue_ready = any(c.position == "blue1" and c.isReady for c in game_clients)
+            red_ready = any(c.position == "red1" and c.isReady for c in game_clients)
+            return blue_ready and red_ready
+
+        elif player_type == "5v5":
+            # Need all 5 positions filled and ready for both teams
+            blue_positions = set(f"blue{i}" for i in range(1, 6))
+            red_positions = set(f"red{i}" for i in range(1, 6))
+            
+            filled_and_ready = set(
+                client.position
+                for client in game_clients
+                if client.isReady
+            )
+            
+            return (blue_positions.issubset(filled_and_ready) and 
+                   red_positions.issubset(filled_and_ready))
+
+        return True  # For 'single' mode
+
     async def handle_connect(self, sid: str, environ):
         logger.debug(f"Client attempting to connect: {sid}")
         await self.sio.emit('connection_success', {'sid': sid}, room=sid)
@@ -169,6 +256,100 @@ class SocketService:
             logger.error(f"Error during ready state change: {str(e)}")
             return {"status": "error", "message": str(e)}
 
+    async def handle_champion_select(self, sid: str, data: dict):
+        """Handle champion selection request"""
+        try:
+            if sid not in self.clients:
+                return {"status": "error", "message": "Client not found"}
+
+            champion = data.get('champion')
+            if not champion:
+                return {"status": "error", "message": "Champion not specified"}
+
+            client = self.clients[sid]
+            game_code = client.gameCode
+
+            # Get game settings and status
+            game_settings = self.game_service.game_settings.get(game_code)
+            game_status = self.game_service.game_status.get(game_code)
+            
+            if not game_settings or not game_status:
+                return {"status": "error", "message": "Game not found"}
+
+            # Check if it's client's turn
+            if not self._is_clients_turn(client, game_status.phase, game_settings.playerType):
+                return {"status": "error", "message": "Not your turn"}
+
+            # Update phase data with selected champion
+            game_status.phaseData[game_status.phase] = champion
+            game_status.lastUpdatedAt = int(time.time() * 1000000)
+
+            # Save updated status
+            self.game_service.game_status[game_code] = game_status
+
+            # Broadcast champion selection to all clients in the game
+            await self.sio.emit('champion_selected', {
+                'nickname': client.nickname,
+                'position': client.position,
+                'champion': champion,
+                'phase': game_status.phase
+            }, room=game_code)
+
+            logger.info(f"Champion selected: {champion} by {client.nickname} in phase {game_status.phase}")
+            return {"status": "success", "message": "Champion selected successfully"}
+
+        except Exception as e:
+            logger.error(f"Error during champion selection: {str(e)}")
+            return {"status": "error", "message": str(e)}
+
+    async def handle_start_draft(self, sid: str, data: dict):
+        """Handle draft start request"""
+        try:
+            if sid not in self.clients:
+                return {"status": "error", "message": "Client not found"}
+
+            client = self.clients[sid]
+            game_code = client.gameCode
+
+            # Check if client is host
+            if not self._is_host(client):
+                return {"status": "error", "message": "Only the host can start the draft"}
+
+            # Get game settings and status
+            game_settings = self.game_service.game_settings.get(game_code)
+            game_status = self.game_service.game_status.get(game_code)
+            
+            if not game_settings or not game_status:
+                return {"status": "error", "message": "Game not found"}
+
+            # Check if game is in initial phase
+            if game_status.phase != 0:
+                return {"status": "error", "message": "Draft has already started"}
+
+            # For non-single modes, check if all players are ready
+            if game_settings.playerType != "single":
+                if not self._are_all_players_ready(game_code, game_settings.playerType):
+                    return {"status": "error", "message": "All players must be ready to start"}
+
+            # Update game status to start draft
+            game_status.phase = 1
+            game_status.lastUpdatedAt = int(time.time() * 1000000)
+            self.game_service.game_status[game_code] = game_status
+
+            # Broadcast draft start to all clients in the game
+            await self.sio.emit('draft_started', {
+                'gameCode': game_code,
+                'startedBy': client.nickname,
+                'timestamp': game_status.lastUpdatedAt
+            }, room=game_code)
+
+            logger.info(f"Draft started in game {game_code} by {client.nickname}")
+            return {"status": "success", "message": "Draft started successfully"}
+
+        except Exception as e:
+            logger.error(f"Error during draft start: {str(e)}")
+            return {"status": "error", "message": str(e)}
+
     def setup(self):
         # Register event handlers
         self.sio.on('connect', self.handle_connect)
@@ -176,5 +357,7 @@ class SocketService:
         self.sio.on('join_game', self.handle_join_game)
         self.sio.on('change_position', self.handle_position_change)
         self.sio.on('change_ready_state', self.handle_ready_state)
+        self.sio.on('select_champion', self.handle_champion_select)
+        self.sio.on('start_draft', self.handle_start_draft)
         
         return socketio.ASGIApp(self.sio)
