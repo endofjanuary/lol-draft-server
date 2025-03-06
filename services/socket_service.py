@@ -21,6 +21,8 @@ class SocketService:
             max_http_buffer_size=1e8
         )
         self.clients: Dict[str, Client] = {}
+        # Need to have access to game_service
+        self.game_service = None
 
     def _validate_position(self, position: str, game_code: str) -> bool:
         """Validate position against game settings"""
@@ -409,6 +411,88 @@ class SocketService:
             logger.error(f"Error during draft start: {str(e)}")
             return {"status": "error", "message": str(e)}
 
+    async def handle_confirm_result(self, sid: str, data: dict):
+        """Handle game result confirmation by the host"""
+        try:
+            if sid not in self.clients:
+                return {"status": "error", "message": "Client not found"}
+
+            client = self.clients[sid]
+            game_code = client.gameCode
+
+            # Check if client is host
+            if not self._is_host(client):
+                return {"status": "error", "message": "Only the host can confirm game result"}
+
+            # Get game settings and status
+            game_settings = self.game_service.game_settings.get(game_code)
+            game_status = self.game_service.game_status.get(game_code)
+            
+            if not game_settings or not game_status:
+                return {"status": "error", "message": "Game not found"}
+
+            # Check if game phase is 21 (game end)
+            if game_status.phase != 21:
+                return {"status": "error", "message": "Game is not in completion phase"}
+
+            winner = data.get('winner')
+            if winner not in ['blue', 'red']:
+                return {"status": "error", "message": "Invalid winner value. Must be 'blue' or 'red'"}
+
+            # Record the winner in phase data
+            game_status.phaseData[21] = winner
+            
+            # Store current set result before resetting
+            if 'game_results' not in self.game_service.__dict__:
+                self.game_service.game_results = {}
+                
+            if game_code not in self.game_service.game_results:
+                from models import GameResult
+                self.game_service.game_results[game_code] = GameResult()
+            
+            # Update score
+            game_result = self.game_service.game_results[game_code]
+            if winner == 'blue':
+                game_result.blueScore += 1
+            else:
+                game_result.redScore += 1
+                
+            # Store the phase data for this set in results
+            while len(game_result.results) < game_status.setNumber:
+                game_result.results.append([])
+            
+            game_result.results[game_status.setNumber - 1] = game_status.phaseData
+
+            # Move to next set
+            game_status.setNumber += 1
+            game_status.phase = 0  # Reset to preparation phase
+            game_status.lastUpdatedAt = int(time.time() * 1000000)
+
+            # Clear phase data for the new set
+            game_status.phaseData = [""] * 22
+
+            # Save updated status
+            self.game_service.game_status[game_code] = game_status
+            self.game_service.game_results[game_code] = game_result
+
+            # Broadcast game result confirmation to all clients in the game
+            await self.sio.emit('game_result_confirmed', {
+                'gameCode': game_code,
+                'confirmedBy': client.nickname,
+                'winner': winner,
+                'blueScore': game_result.blueScore,
+                'redScore': game_result.redScore,
+                'nextSetNumber': game_status.setNumber,
+                'timestamp': game_status.lastUpdatedAt
+            }, room=game_code)
+
+            logger.info(f"Game result confirmed in {game_code}: {winner} wins. Moving to set {game_status.setNumber}")
+            return {"status": "success", "message": "Game result confirmed successfully"}
+
+        except Exception as e:
+            logger.error(f"Error during game result confirmation: {str(e)}")
+            return {"status": "error", "message": str(e)}
+
     def setup(self):
         # Register event handlers
         self.sio.on('connect', self.handle_connect)
@@ -419,5 +503,6 @@ class SocketService:
         self.sio.on('select_champion', self.handle_champion_select)
         self.sio.on('confirm_selection', self.handle_confirm_selection)
         self.sio.on('start_draft', self.handle_start_draft)
+        self.sio.on('confirm_result', self.handle_confirm_result)  # Add new handler
         
         return socketio.ASGIApp(self.sio)

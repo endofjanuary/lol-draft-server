@@ -19,4 +19,5 @@ app.include_router(game_routes.router)
 
 # Setup Socket.IO at the root path
 socket_service = SocketService()
+socket_service.game_service = game_routes.game_service  # Link to the game service
 app.mount("/", socket_service.setup())
