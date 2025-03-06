@@ -282,6 +282,10 @@ class SocketService:
             
             if not game_settings or not game_status:
                 return {"status": "error", "message": "Game not found"}
+                
+            # Validate phase is between 1 and 20
+            if game_status.phase < 1 or game_status.phase > 20:
+                return {"status": "error", "message": "Champion selection not allowed in current phase"}
 
             # Check if it's client's turn
             if not self._is_clients_turn(client, game_status.phase, game_settings.playerType):
