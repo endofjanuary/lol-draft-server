@@ -1,140 +1,194 @@
-# REST API Documentation
+# RESTful API 완전 가이드
 
-## Create Game
+## 1. 게임 생성 (Create Game)
 
-새로운 게임을 생성하고 초기화합니다.
+새 게임을 생성하고 게임 코드를 얻습니다.
 
-- **URL**: `/games`
-- **Method**: `POST`
-- **Request Body**: GameSetting
+**요청 예시:**
 
-```json
-{
-  "version": "14.10.1",
-  "draftType": "tournament",
-  "playerType": "5v5",
-  "matchFormat": "bo3",
-  "timeLimit": true
-}
-```
+```javascript
+// Using fetch
+const createGame = async () => {
+  const response = await fetch("http://localhost:8000/games", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      version: "14.10.1",
+      draftType: "tournament", // "tournament", "hardFearless", "softFearless"
+      playerType: "5v5", // "single", "1v1", "5v5"
+      matchFormat: "bo3", // "bo1", "bo3", "bo5"
+      timeLimit: true,
+    }),
+  });
 
-- **Response**: Game
-
-```json
-{
-  "gameCode": "a1b2c3d4",
-  "createdAt": 1740663081873
-}
-```
-
-## Get Game Information
-
-게임 코드에 해당하는 게임의 모든 정보를 조회합니다.
-
-- **URL**: `/games/{game_code}`
-- **Method**: `GET`
-- **URL Parameters**:
-
-  - `game_code`: 8자리 게임 코드
-
-- **Response**: GameInfo
-
-```json
-{
-  "game": {
-    "gameCode": "a1b2c3d4",
-    "createdAt": 1740663081873
-  },
-  "settings": {
-    "version": "14.10.1",
-    "draftType": "tournament",
-    "playerType": "5v5",
-    "matchFormat": "bo3",
-    "timeLimit": true
-  },
-  "status": {
-    "phase": 0,
-    "blueTeamName": "Blue",
-    "redTeamName": "Red",
-    "lastUpdatedAt": 1740663081873,
-    "phaseData": ["", "", "..."],
-    "setNumber": 1
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail);
   }
-}
+
+  return await response.json();
+};
+
+// Using axios
+const createGame = async () => {
+  try {
+    const response = await axios.post("http://localhost:8000/games", {
+      version: "14.10.1",
+      draftType: "tournament",
+      playerType: "5v5",
+      matchFormat: "bo3",
+      timeLimit: true,
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response.data.detail);
+  }
+};
 ```
 
-## Get Game Clients
+## 2. 게임 정보 조회 (Get Game Info)
 
-특정 게임에 접속해 있는 모든 클라이언트의 정보를 조회합니다.
+게임 코드로 게임 정보를 조회합니다.
 
-- **URL**: `/games/{game_code}/clients`
-- **Method**: `GET`
-- **URL Parameters**:
+**요청 예시:**
 
-  - `game_code`: 8자리 게임 코드
+```javascript
+// Using fetch
+const getGameInfo = async (gameCode) => {
+  const response = await fetch(`http://localhost:8000/games/${gameCode}`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+  });
 
-- **Response**: GameClients
-
-```json
-{
-  "clients": [
-    {
-      "nickname": "Hide on bush",
-      "position": "blue1"
-    },
-    {
-      "nickname": "Faker",
-      "position": "red1"
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error(`Game not found: ${gameCode}`);
     }
-  ]
-}
+    const error = await response.json();
+    throw new Error(error.detail);
+  }
+
+  return await response.json();
+};
+
+// Using axios
+const getGameInfo = async (gameCode) => {
+  try {
+    const response = await axios.get(`http://localhost:8000/games/${gameCode}`);
+    return response.data;
+  } catch (error) {
+    if (error.response.status === 404) {
+      throw new Error(`Game not found: ${gameCode}`);
+    }
+    throw new Error(error.response.data.detail);
+  }
+};
 ```
 
-## Common Headers
+## 3. 게임 참여자 조회 (Get Game Clients)
 
-### Request Headers
+게임에 현재 접속한 클라이언트 목록을 조회합니다.
 
-```http
-Content-Type: application/json
+**요청 예시:**
+
+```javascript
+// Using fetch
+const getGameClients = async (gameCode) => {
+  const response = await fetch(
+    `http://localhost:8000/games/${gameCode}/clients`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    }
+  );
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error(`Game not found: ${gameCode}`);
+    }
+    const error = await response.json();
+    throw new Error(error.detail);
+  }
+
+  return await response.json();
+};
+
+// Using axios
+const getGameClients = async (gameCode) => {
+  try {
+    const response = await axios.get(
+      `http://localhost:8000/games/${gameCode}/clients`
+    );
+    return response.data;
+  } catch (error) {
+    if (error.response.status === 404) {
+      throw new Error(`Game not found: ${gameCode}`);
+    }
+    const errorMsg = error.response.data.detail;
+    throw new Error(errorMsg);
+  }
+};
 ```
 
-### Response Headers
+## 완전한 프론트엔드 통합 예시
 
-```http
-Content-Type: application/json
-Access-Control-Allow-Origin: *
-```
+```javascript
+// 게임 생성 및 접속 전체 흐름
+const startNewGame = async () => {
+  try {
+    // 1. 게임 생성
+    const game = await createGame();
+    console.log(`Game created with code: ${game.gameCode}`);
 
-## Error Responses
+    // 2. 소켓 연결
+    const socket = io("http://localhost:8000", {
+      transports: ["websocket"],
+    });
 
-모든 API는 다음과 같은 에러 응답을 반환할 수 있습니다:
+    // 3. 연결 성공 시 게임 참가
+    socket.on("connection_success", (data) => {
+      console.log(`Connected with socket ID: ${data.sid}`);
 
-### 400 Bad Request
+      // 4. 게임에 참가 (블루팀 1번 포지션으로)
+      socket.emit(
+        "join_game",
+        {
+          gameCode: game.gameCode,
+          nickname: "Player1",
+          position: "blue1",
+        },
+        (response) => {
+          if (response.status === "success") {
+            console.log("Successfully joined game as blue1");
 
-잘못된 요청 형식이나 유효하지 않은 파라미터
+            // 5. 준비 완료 상태로 설정
+            socket.emit("change_ready_state", { isReady: true });
+          }
+        }
+      );
+    });
 
-```json
-{
-  "detail": "Invalid request body: matchFormat must be one of: bo1, bo3, bo5"
-}
-```
+    // 6. 다른 플레이어 참가 감지
+    socket.on("client_joined", (data) => {
+      console.log(`${data.nickname} joined as ${data.position}`);
+    });
 
-### 404 Not Found
+    // 7. 게임 정보 주기적으로 확인
+    setInterval(async () => {
+      try {
+        const gameInfo = await getGameInfo(game.gameCode);
+        console.log("Current phase:", gameInfo.status.phase);
 
-요청한 리소스를 찾을 수 없음
+        // 필요에 따라 UI 업데이트
+      } catch (error) {
+        console.error("Error fetching game info:", error);
+      }
+    }, 5000);
 
-```json
-{
-  "detail": "Game not found: a1b2c3d4"
-}
-```
-
-### 500 Internal Server Error
-
-서버 내부 오류
-
-```json
-{
-  "detail": "Failed to process request"
-}
+    return { game, socket };
+  } catch (error) {
+    console.error("Error starting game:", error);
+    throw error;
+  }
+};
 ```
