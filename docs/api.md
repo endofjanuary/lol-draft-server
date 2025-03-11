@@ -48,7 +48,7 @@ const createGame = async () => {
 
 ## 2. 게임 정보 조회 (Get Game Info)
 
-게임 코드로 게임 정보를 조회합니다.
+게임 코드로 게임 정보를 조회합니다. 응답에는 게임 정보뿐만 아니라 현재 게임에 참여하고 있는 클라이언트들의 정보(닉네임, 포지션)도 함께 포함됩니다.
 
 **요청 예시:**
 
@@ -83,6 +83,45 @@ const getGameInfo = async (gameCode) => {
     throw new Error(error.response.data.detail);
   }
 };
+```
+
+**응답 구조:**
+
+```javascript
+{
+  "game": {
+    "gameCode": "ab12cd34",
+    "createdAt": 1668457862000000
+  },
+  "settings": {
+    "version": "14.10.1",
+    "draftType": "tournament",
+    "playerType": "5v5",
+    "matchFormat": "bo3",
+    "timeLimit": true
+  },
+  "status": {
+    "phase": 0,
+    "blueTeamName": "Blue",
+    "redTeamName": "Red",
+    "lastUpdatedAt": 1668457862000000,
+    "phaseData": ["", "", "..."],
+    "setNumber": 1
+  },
+  "clients": [
+    {
+      "nickname": "Player1",
+      "position": "blue1",
+      "isReady": true    // 추가된 준비 상태 필드
+    },
+    {
+      "nickname": "Player2",
+      "position": "red1",
+      "isReady": false   // 추가된 준비 상태 필드
+    },
+    // ... 기타 접속중인 클라이언트
+  ]
+}
 ```
 
 ## 3. 게임 참여자 조회 (Get Game Clients)
