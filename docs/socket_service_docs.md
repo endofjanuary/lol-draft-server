@@ -13,6 +13,7 @@ The server uses Socket.IO to establish connections with clients.
 - `connect`: Triggered when a client connects to the server
 - `connection_success`: Sent by server upon successful connection
 - `disconnect`: Triggered when a client disconnects
+- `client_left`: Sent by server when a client disconnects from a game
 
 **Example - Client Connection:**
 
@@ -32,6 +33,14 @@ socket.on("connection_success", (data) => {
 
 socket.on("disconnect", () => {
   console.log("Disconnected from server");
+});
+
+// Listen for other clients disconnecting
+socket.on("client_left", (data) => {
+  console.log(
+    `${data.nickname} left the game (was in position: ${data.position})`
+  );
+  // Update UI to remove the disconnected client
 });
 ```
 

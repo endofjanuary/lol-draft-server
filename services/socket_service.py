@@ -151,6 +151,12 @@ class SocketService:
     async def handle_disconnect(self, sid: str):
         if sid in self.clients:
             client = self.clients[sid]
+            # Broadcast client_left event to the game room
+            await self.sio.emit('client_left', {
+                'nickname': client.nickname,
+                'position': client.position
+            }, room=client.gameCode)
+            
             logger.info(f"Client disconnected: {client.nickname} ({sid}) from game {client.gameCode}")
             del self.clients[sid]
         else:
