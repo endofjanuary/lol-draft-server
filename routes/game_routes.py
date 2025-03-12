@@ -21,6 +21,7 @@ class ClientInfo(BaseModel):
     nickname: str
     position: str
     isReady: bool = False  # Added isReady field with default value
+    isHost: bool = False   # Added isHost field with default value
 
 class GameClients(BaseModel):
     clients: List[ClientInfo]
@@ -38,10 +39,29 @@ async def get_game(game_code: str):
         
         # Get client information for the game
         from main import socket_service
-        clients = [
-            ClientInfo(nickname=client.nickname, position=client.position, isReady=client.isReady)
-            for client in socket_service.clients.values()
+        game_clients = [
+            client for client in socket_service.clients.values()
             if client.gameCode == game_code
+        ]
+        
+        # Determine host (client with earliest joinedAt)
+        host_client_id = None
+        if game_clients:
+            earliest_join_time = min(client.joinedAt for client in game_clients)
+            host_client_id = next(
+                client.socketId for client in game_clients 
+                if client.joinedAt == earliest_join_time
+            )
+        
+        # Create client list with host flag
+        clients = [
+            ClientInfo(
+                nickname=client.nickname, 
+                position=client.position, 
+                isReady=client.isReady,
+                isHost=(client.socketId == host_client_id)
+            )
+            for client in game_clients
         ]
         
         # Create GameInfo object properly from the dictionary
@@ -73,10 +93,29 @@ async def get_game_clients(game_code: str):
             
         # socket_service에서 해당 게임에 연결된 클라이언트 조회
         from main import socket_service
-        clients = [
-            ClientInfo(nickname=client.nickname, position=client.position, isReady=client.isReady)
-            for client in socket_service.clients.values()
+        game_clients = [
+            client for client in socket_service.clients.values()
             if client.gameCode == game_code
+        ]
+        
+        # Determine host (client with earliest joinedAt)
+        host_client_id = None
+        if game_clients:
+            earliest_join_time = min(client.joinedAt for client in game_clients)
+            host_client_id = next(
+                client.socketId for client in game_clients 
+                if client.joinedAt == earliest_join_time
+            )
+        
+        # Create client list with host flag
+        clients = [
+            ClientInfo(
+                nickname=client.nickname, 
+                position=client.position, 
+                isReady=client.isReady,
+                isHost=(client.socketId == host_client_id)
+            )
+            for client in game_clients
         ]
         
         return GameClients(clients=clients)

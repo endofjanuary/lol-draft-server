@@ -112,12 +112,14 @@ const getGameInfo = async (gameCode) => {
     {
       "nickname": "Player1",
       "position": "blue1",
-      "isReady": true    // 추가된 준비 상태 필드
+      "isReady": true,    // 준비 상태 필드
+      "isHost": true      // 호스트 여부 필드 (방장인 경우 true)
     },
     {
       "nickname": "Player2",
       "position": "red1",
-      "isReady": false   // 추가된 준비 상태 필드
+      "isReady": false,   // 준비 상태 필드
+      "isHost": false     // 호스트 여부 필드 (방장이 아닌 경우 false)
     },
     // ... 기타 접속중인 클라이언트
   ]
