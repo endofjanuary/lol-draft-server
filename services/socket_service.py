@@ -143,6 +143,15 @@ class SocketService:
         # Re-use existing turn validation logic
         return self._is_clients_turn(client, phase, player_type)
 
+    def _get_timestamp(self) -> int:
+        """Generate a reliable timestamp in microseconds"""
+        try:
+            return int(time.time() * 1000000)
+        except (ValueError, TypeError) as e:
+            logger.error(f"Error generating timestamp: {e}")
+            # Fallback to a simpler timestamp format (milliseconds)
+            return int(time.time() * 1000)
+
     async def handle_connect(self, sid: str, environ):
         logger.debug(f"Client attempting to connect: {sid}")
         await self.sio.emit('connection_success', {'sid': sid}, room=sid)
@@ -179,7 +188,7 @@ class SocketService:
                 socketId=sid,
                 gameCode=game_code,
                 position=position,
-                joinedAt=int(time.time() * 1000000),
+                joinedAt=self._get_timestamp(),
                 nickname=data['nickname']
             )
             
@@ -299,7 +308,7 @@ class SocketService:
 
             # Update phase data with selected champion
             game_status.phaseData[game_status.phase] = champion
-            game_status.lastUpdatedAt = int(time.time() * 1000000)
+            game_status.lastUpdatedAt = self._get_timestamp()
 
             # Save updated status
             self.game_service.game_status[game_code] = game_status
@@ -351,7 +360,7 @@ class SocketService:
 
             # Update phase
             game_status.phase = current_phase + 1
-            game_status.lastUpdatedAt = int(time.time() * 1000000)
+            game_status.lastUpdatedAt = self._get_timestamp()
 
             # Save updated status
             self.game_service.game_status[game_code] = game_status
@@ -404,7 +413,7 @@ class SocketService:
 
             # Update game status to start draft
             game_status.phase = 1
-            game_status.lastUpdatedAt = int(time.time() * 1000000)
+            game_status.lastUpdatedAt = self._get_timestamp()
             self.game_service.game_status[game_code] = game_status
 
             # Broadcast draft start to all clients in the game
@@ -476,7 +485,7 @@ class SocketService:
             # Move to next set
             game_status.setNumber += 1
             game_status.phase = 0  # Reset to preparation phase
-            game_status.lastUpdatedAt = int(time.time() * 1000000)
+            game_status.lastUpdatedAt = self._get_timestamp()
 
             # Clear phase data for the new set
             game_status.phaseData = [""] * 22
