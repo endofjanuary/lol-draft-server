@@ -60,8 +60,8 @@ class SocketService:
         if client.position == "spectator":
             return False
 
-        team = client.position[:4]  # 'blue' or 'red'
-        position_num = int(client.position[4:])  # 1-5
+        team = client.position[:-1]  # 'blue' or 'red'
+        position_num = int(client.position[-1:])  # 1-5
 
         # Phase ranges
         BAN_PHASE_1 = range(1, 7)    # 1-6
