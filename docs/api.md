@@ -70,21 +70,23 @@ const createGameWithOptions = async () => {
 };
 ```
 
+```javascript
 // Using axios
 const createGame = async () => {
-try {
-const response = await axios.post("http://localhost:8000/games", {
-version: "14.10.1",
-draftType: "tournament",
-playerType: "5v5",
-matchFormat: "bo3",
-timeLimit: true,
-});
-return response.data;
-} catch (error) {
-throw new Error(error.response.data.detail);
-}
+  try {
+    const response = await axios.post("http://localhost:8000/games", {
+      version: "14.10.1",
+      draftType: "tournament",
+      playerType: "5v5",
+      matchFormat: "bo3",
+      timeLimit: true,
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response.data.detail);
+  }
 };
+```
 
 ## 2. 게임 정보 조회 (Get Game Info)
 
