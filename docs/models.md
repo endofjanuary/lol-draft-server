@@ -1,5 +1,7 @@
 # Data Models
 
+> 이 문서는 LoL Draft Server에서 사용되는 데이터 모델과 구조를 설명합니다. 각 모델의 필드, 제약조건 및 유효성 검사 규칙을 제공합니다.
+
 ## Game
 
 | Name      | Type   | Description                    |

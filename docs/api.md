@@ -1,5 +1,7 @@
 # RESTful API 완전 가이드
 
+> 이 문서는 LoL Draft Server의 RESTful API 엔드포인트와 사용 방법을 설명합니다. 게임 생성, 정보 조회, 클라이언트 관리 등의 기능을 HTTP 요청으로 수행하는 방법을 제공합니다.
+
 ## 1. 게임 생성 (Create Game)
 
 새 게임을 생성하고 게임 코드를 얻습니다.

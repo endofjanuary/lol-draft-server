@@ -1,5 +1,7 @@
 # Upcoming Features
 
+> 이 문서는 LoL Draft Server에 향후 추가 예정인 기능과 개선 사항을 설명합니다. 현재 구현된 기능과 미래에 구현될 기능을 구별하여 제공합니다.
+
 ## Real-time Draft System
 
 Socket.IO를 사용한 실시간 밴픽 시스템 구현:

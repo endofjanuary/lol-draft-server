@@ -1,5 +1,7 @@
 # Getting Started
 
+> 이 문서는 LoL Draft Server의 설정, 설치 및 실행 방법에 대한 기본 가이드입니다. 개발 환경 구성부터 서버 실행까지의 과정을 설명합니다.
+
 ## Prerequisites
 
 - Python 3.8 이상
