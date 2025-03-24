@@ -122,7 +122,9 @@ const getGameInfo = async (gameCode) => {
       "isHost": false     // 호스트 여부 필드 (방장이 아닌 경우 false)
     },
     // ... 기타 접속중인 클라이언트
-  ]
+  ],
+  "blueScore": 1,         // 블루팀의 현재 승리 횟수
+  "redScore": 0           // 레드팀의 현재 승리 횟수
 }
 ```
 

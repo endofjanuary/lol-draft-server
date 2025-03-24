@@ -31,6 +31,8 @@ class GameInfo(BaseModel):
     settings: GameSetting
     status: GameStatus
     clients: List[ClientInfo] = []  # Added clients field with default empty list
+    blueScore: int = 0  # Add blue team score field
+    redScore: int = 0   # Add red team score field
 
 @router.get("/games/{game_code}", response_model=GameInfo)
 async def get_game(game_code: str):
@@ -64,12 +66,20 @@ async def get_game(game_code: str):
             for client in game_clients
         ]
         
+        # Get team scores from game results if available
+        blue_score, red_score = 0, 0
+        if hasattr(game_service, 'game_results') and game_code in game_service.game_results:
+            blue_score = game_service.game_results[game_code].blueScore
+            red_score = game_service.game_results[game_code].redScore
+        
         # Create GameInfo object properly from the dictionary
         game_info = GameInfo(
             game=game_data["game"],
             settings=game_data["settings"],
             status=game_data["status"],
-            clients=clients
+            clients=clients,
+            blueScore=blue_score,
+            redScore=red_score
         )
         
         return game_info
