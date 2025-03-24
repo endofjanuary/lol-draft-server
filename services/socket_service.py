@@ -490,6 +490,12 @@ class SocketService:
             # Clear phase data for the new set
             game_status.phaseData = [""] * 22
 
+            # Reset ready state for all players in this game
+            for client_sid, client_obj in self.clients.items():
+                if client_obj.gameCode == game_code and client_obj.position != 'spectator':
+                    client_obj.isReady = False
+                    self.clients[client_sid] = client_obj
+
             # Save updated status
             self.game_service.game_status[game_code] = game_status
             self.game_service.game_results[game_code] = game_result
