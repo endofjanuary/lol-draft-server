@@ -43,6 +43,10 @@ class GameService:
                     blue_team_name = raw_body["blueTeamName"]
                 if "redTeamName" in raw_body:
                     red_team_name = raw_body["redTeamName"]
+                
+                # Extract globalBans if specified
+                if "globalBans" in raw_body and isinstance(raw_body["globalBans"], list):
+                    setting.globalBans = raw_body["globalBans"]
             except Exception as e:
                 # Log error but continue with defaults
                 print(f"Error extracting additional game data: {str(e)}")
