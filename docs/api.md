@@ -4,19 +4,19 @@
 
 새 게임을 생성하고 게임 코드를 얻습니다.
 
-**요청 예시:**
+### 기본 요청 예시:
 
 ```javascript
-// Using fetch
+// Using fetch with minimal required fields
 const createGame = async () => {
   const response = await fetch("http://localhost:8000/games", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       version: "14.10.1",
-      draftType: "tournament", // "tournament", "hardFearless", "softFearless"
-      playerType: "5v5", // "single", "1v1", "5v5"
-      matchFormat: "bo3", // "bo1", "bo3", "bo5"
+      draftType: "tournament",
+      playerType: "5v5",
+      matchFormat: "bo3",
       timeLimit: true,
     }),
   });
@@ -28,23 +28,63 @@ const createGame = async () => {
 
   return await response.json();
 };
+```
 
-// Using axios
-const createGame = async () => {
-  try {
-    const response = await axios.post("http://localhost:8000/games", {
+### 추가 옵션 사용 예시:
+
+```javascript
+// Using fetch with all optional fields
+const createGameWithOptions = async () => {
+  const response = await fetch("http://localhost:8000/games", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      // 필수 필드
       version: "14.10.1",
       draftType: "tournament",
       playerType: "5v5",
       matchFormat: "bo3",
       timeLimit: true,
-    });
-    return response.data;
-  } catch (error) {
-    throw new Error(error.response.data.detail);
+
+      // 추가 필드
+      gameName: "롤드컵 결승", // 게임 이름
+      teamNames: {
+        // 팀 이름
+        blue: "T1",
+        red: "Gen.G",
+      },
+      // 또는 직접 팀 이름 지정
+      // blueTeamName: "T1",
+      // redTeamName: "Gen.G",
+
+      globalBans: ["Yuumi", "Zed"], // 전역 밴 챔피언 목록
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail);
   }
+
+  return await response.json();
 };
 ```
+
+// Using axios
+const createGame = async () => {
+try {
+const response = await axios.post("http://localhost:8000/games", {
+version: "14.10.1",
+draftType: "tournament",
+playerType: "5v5",
+matchFormat: "bo3",
+timeLimit: true,
+});
+return response.data;
+} catch (error) {
+throw new Error(error.response.data.detail);
+}
+};
 
 ## 2. 게임 정보 조회 (Get Game Info)
 

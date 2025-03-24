@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Literal, List
+from typing import Literal, List, Optional
 
 class GameSetting(BaseModel):
     version: str
@@ -7,10 +7,12 @@ class GameSetting(BaseModel):
     playerType: Literal["single", "1v1", "5v5"]
     matchFormat: Literal["bo1", "bo3", "bo5"]
     timeLimit: bool
+    globalBans: Optional[List[str]] = []  # Added globalBans field
 
 class Game(BaseModel):
     gameCode: str
     createdAt: int
+    gameName: Optional[str] = "New Game"  # Added gameName field
 
 class GameStatus(BaseModel):
     phase: int = 0

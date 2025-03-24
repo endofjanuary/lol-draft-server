@@ -6,16 +6,18 @@
 | --------- | ------ | ------------------------------ |
 | gameCode  | string | 8개의 16진수로 이루어진 문자열 |
 | createdAt | number | 생성된 시점의 nanosecond값     |
+| gameName  | string | 게임 이름 (기본값: "New Game") |
 
 ## GameSetting
 
-| Name        | Type    | Description                                    |
-| ----------- | ------- | ---------------------------------------------- |
-| version     | string  | 리그오브레전드 패치버전 (ex. "14.10.1")        |
-| draftType   | string  | "tournament" / "hardFearless" / "softFearless" |
-| playerType  | string  | "single" / "1v1" / "5v5"                       |
-| matchFormat | string  | "bo1" / "bo3" / "bo5"                          |
-| timeLimit   | boolean | true / false                                   |
+| Name        | Type         | Description                                         |
+| ----------- | ------------ | --------------------------------------------------- |
+| version     | string       | 리그오브레전드 패치버전 (ex. "14.10.1")             |
+| draftType   | string       | "tournament" / "hardFearless" / "softFearless"      |
+| playerType  | string       | "single" / "1v1" / "5v5"                            |
+| matchFormat | string       | "bo1" / "bo3" / "bo5"                               |
+| timeLimit   | boolean      | true / false                                        |
+| globalBans  | string array | 게임 전체에서 사용 불가능한 챔피언 목록 (선택 사항) |
 
 ## GameStatus
 

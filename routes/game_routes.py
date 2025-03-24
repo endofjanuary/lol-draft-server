@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from models import Game, GameSetting, GameStatus
 from services.game_service import GameService
 from pydantic import BaseModel
@@ -8,9 +8,9 @@ router = APIRouter()
 game_service = GameService()
 
 @router.post("/games", response_model=Game)
-async def create_game(setting: GameSetting):
+async def create_game(setting: GameSetting, request: Request):
     try:
-        return game_service.create_game(setting)
+        return await game_service.create_game(setting, request)
     except Exception as e:
         raise HTTPException(
             status_code=500,
