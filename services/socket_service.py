@@ -354,8 +354,11 @@ class SocketService:
             if not self._can_confirm_selection(client, current_phase, game_settings.playerType):
                 return {"status": "error", "message": "Not your turn to confirm"}
 
-            # Check if a champion is selected in current phase
-            if not game_status.phaseData[current_phase]:
+            # Define ban phases
+            BAN_PHASES = list(range(1, 7)) + list(range(13, 17))  # Phases 1-6 and 13-16 are ban phases
+            
+            # Check if a champion is selected in current phase (only required for pick phases)
+            if not game_status.phaseData[current_phase] and current_phase not in BAN_PHASES:
                 return {"status": "error", "message": "No champion selected for current phase"}
 
             # Update phase
