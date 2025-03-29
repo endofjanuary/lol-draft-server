@@ -8,6 +8,7 @@ class GameSetting(BaseModel):
     matchFormat: Literal["bo1", "bo3", "bo5"]
     timeLimit: bool
     globalBans: Optional[List[str]] = []  # Added globalBans field
+    bannerImage: Optional[str] = None  # Added bannerImage field for base64-encoded image
 
 class Game(BaseModel):
     gameCode: str

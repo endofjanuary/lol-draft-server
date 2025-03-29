@@ -20,6 +20,7 @@
 | matchFormat | string       | "bo1" / "bo3" / "bo5"                               |
 | timeLimit   | boolean      | true / false                                        |
 | globalBans  | string array | 게임 전체에서 사용 불가능한 챔피언 목록 (선택 사항) |
+| bannerImage | string       | base64로 인코딩된 배너 이미지 (선택 사항)           |
 
 ## GameStatus
 

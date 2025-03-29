@@ -47,6 +47,10 @@ class GameService:
                 # Extract globalBans if specified
                 if "globalBans" in raw_body and isinstance(raw_body["globalBans"], list):
                     setting.globalBans = raw_body["globalBans"]
+                
+                # Extract bannerImage if specified
+                if "bannerImage" in raw_body and isinstance(raw_body["bannerImage"], str):
+                    setting.bannerImage = raw_body["bannerImage"]
             except Exception as e:
                 # Log error but continue with defaults
                 print(f"Error extracting additional game data: {str(e)}")

@@ -60,6 +60,9 @@ const createGameWithOptions = async () => {
       // redTeamName: "Gen.G",
 
       globalBans: ["Yuumi", "Zed"], // 전역 밴 챔피언 목록
+
+      // 배너 이미지 (base64 인코딩된 문자열)
+      bannerImage: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
     }),
   });
 
@@ -135,14 +138,17 @@ const getGameInfo = async (gameCode) => {
 {
   "game": {
     "gameCode": "ab12cd34",
-    "createdAt": 1668457862000000
+    "createdAt": 1668457862000000,
+    "gameName": "롤드컵 결승"
   },
   "settings": {
     "version": "14.10.1",
     "draftType": "tournament",
     "playerType": "5v5",
     "matchFormat": "bo3",
-    "timeLimit": true
+    "timeLimit": true,
+    "globalBans": ["Yuumi", "Zed"],
+    "bannerImage": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."  // 설정에 저장된 배너 이미지
   },
   "status": {
     "phase": 0,
@@ -168,7 +174,8 @@ const getGameInfo = async (gameCode) => {
     // ... 기타 접속중인 클라이언트
   ],
   "blueScore": 1,         // 블루팀의 현재 승리 횟수
-  "redScore": 0           // 레드팀의 현재 승리 횟수
+  "redScore": 0,          // 레드팀의 현재 승리 횟수
+  "bannerImage": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."  // 최상위 레벨에서 접근 가능한 배너 이미지
 }
 ```
 

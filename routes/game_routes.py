@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Request
 from models import Game, GameSetting, GameStatus
 from services.game_service import GameService
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 router = APIRouter()
 game_service = GameService()
@@ -28,11 +28,12 @@ class GameClients(BaseModel):
 
 class GameInfo(BaseModel):
     game: Game
-    settings: GameSetting
+    settings: GameSetting  # This already includes bannerImage
     status: GameStatus
     clients: List[ClientInfo] = []  # Added clients field with default empty list
     blueScore: int = 0  # Add blue team score field
     redScore: int = 0   # Add red team score field
+    bannerImage: Optional[str] = None  # Add explicit field for banner image
 
 @router.get("/games/{game_code}", response_model=GameInfo)
 async def get_game(game_code: str):
@@ -72,6 +73,11 @@ async def get_game(game_code: str):
             blue_score = game_service.game_results[game_code].blueScore
             red_score = game_service.game_results[game_code].redScore
         
+        # Get banner image from settings
+        banner_image = None
+        if hasattr(game_data["settings"], 'bannerImage'):
+            banner_image = game_data["settings"].bannerImage
+        
         # Create GameInfo object properly from the dictionary
         game_info = GameInfo(
             game=game_data["game"],
@@ -79,7 +85,8 @@ async def get_game(game_code: str):
             status=game_data["status"],
             clients=clients,
             blueScore=blue_score,
-            redScore=red_score
+            redScore=red_score,
+            bannerImage=banner_image  # Explicitly include banner image
         )
         
         return game_info
