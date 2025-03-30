@@ -21,3 +21,38 @@ python run.py --reload
 ```
 
 자세한 사용법은 각 문서를 참고하세요.
+
+## Railway 배포 방법
+
+1. GitHub에 코드 푸시:
+
+   ```bash
+   git add .
+   git commit -m "Prepare for Railway deployment"
+   git push origin main
+   ```
+
+2. Railway 대시보드에서:
+
+   - "New Project" 클릭
+   - "Deploy from GitHub repo" 선택
+   - 해당 저장소 선택
+   - "Deploy Now" 클릭
+
+3. 환경 변수 설정 (Railway 대시보드의 "Variables" 탭):
+
+   - `ALLOWED_ORIGINS`: 프론트엔드 도메인 (예: `https://your-frontend.com`)
+   - 필요한 경우 추가 환경 변수 설정
+
+4. 배포 확인:
+
+   - Swagger 문서: `https://your-app.up.railway.app/docs`
+   - API 엔드포인트: `https://your-app.up.railway.app/api/games`
+
+5. 프론트엔드 Socket.IO 클라이언트 설정:
+   ```javascript
+   const socket = io("https://your-app.up.railway.app", {
+     transports: ["websocket"],
+     autoConnect: true,
+   });
+   ```

@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from routes import game_routes
 from services.socket_service import SocketService
@@ -5,10 +6,15 @@ from starlette.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="LoL Draft Server")
 
+# Get allowed origins from environment variable
+allowed_origins = os.environ.get("ALLOWED_ORIGINS", "*")
+if allowed_origins != "*":
+    allowed_origins = allowed_origins.split(",")
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins in development
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
