@@ -1,4 +1,6 @@
 import os
+import platform
+from datetime import datetime
 from fastapi import FastAPI
 from routes import game_routes
 from services.socket_service import SocketService
@@ -19,6 +21,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Health check endpoint
+@app.get("/ping")
+async def ping():
+    """Simple health check endpoint to verify server is responding"""
+    return {
+        "status": "ok",
+        "timestamp": datetime.now().isoformat(),
+        "environment": os.environ.get("ENVIRONMENT", "development"),
+        "python_version": platform.python_version(),
+        "message": "LoL Draft Server is running"
+    }
 
 # Include routers
 app.include_router(game_routes.router)
