@@ -1,9 +1,13 @@
-from pydantic import BaseModel
+from dataclasses import dataclass
+from typing import Optional
 
-class Client(BaseModel):
-    socketId: str
-    gameCode: str
+@dataclass
+class Client:
+    socket_id: str
+    game_code: str
     position: str
-    joinedAt: int
+    joined_at: int
     nickname: str
-    isReady: bool = False  # Default to not ready
+    is_ready: bool = False
+    is_host: bool = False
+    selected_champion: Optional[str] = None

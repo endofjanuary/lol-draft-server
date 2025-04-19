@@ -7,15 +7,23 @@ from typing import List, Optional
 router = APIRouter()
 game_service = GameService()
 
-@router.post("/games", response_model=Game)
+@router.post("/games")
 async def create_game(setting: GameSetting, request: Request):
+    """새로운 게임을 생성합니다."""
     try:
-        return await game_service.create_game(setting, request)
+        # 요청 디버깅
+        print(f"게임 생성 요청: {setting}")
+        
+        # 게임 생성
+        game = await game_service.create_game(setting, request)
+        
+        # 생성된 게임 정보 출력
+        print(f"게임 생성 성공: {game.gameCode}")
+        
+        return game
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to create game: {str(e)}"
-        )
+        print(f"Error in create_game endpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"게임 생성에 실패했습니다: {str(e)}")
 
 class ClientInfo(BaseModel):
     nickname: str
@@ -35,71 +43,17 @@ class GameInfo(BaseModel):
     redScore: int = 0   # Add red team score field
     bannerImage: Optional[str] = None  # Add explicit field for banner image
 
-@router.get("/games/{game_code}", response_model=GameInfo)
+@router.get("/games/{game_code}")
 async def get_game(game_code: str):
+    """게임 정보를 반환합니다."""
     try:
-        game_data = game_service.get_game_info(game_code)
-        
-        # Get client information for the game
-        from main import socket_service
-        game_clients = [
-            client for client in socket_service.clients.values()
-            if client.gameCode == game_code
-        ]
-        
-        # Determine host (client with earliest joinedAt)
-        host_client_id = None
-        if game_clients:
-            earliest_join_time = min(client.joinedAt for client in game_clients)
-            host_client_id = next(
-                client.socketId for client in game_clients 
-                if client.joinedAt == earliest_join_time
-            )
-        
-        # Create client list with host flag
-        clients = [
-            ClientInfo(
-                nickname=client.nickname, 
-                position=client.position, 
-                isReady=client.isReady,
-                isHost=(client.socketId == host_client_id)
-            )
-            for client in game_clients
-        ]
-        
-        # Get team scores from game results if available
-        blue_score, red_score = 0, 0
-        if hasattr(game_service, 'game_results') and game_code in game_service.game_results:
-            blue_score = game_service.game_results[game_code].blueScore
-            red_score = game_service.game_results[game_code].redScore
-        
-        # Get banner image from settings
-        banner_image = None
-        if hasattr(game_data["settings"], 'bannerImage'):
-            banner_image = game_data["settings"].bannerImage
-        
-        # Create GameInfo object properly from the dictionary
-        game_info = GameInfo(
-            game=game_data["game"],
-            settings=game_data["settings"],
-            status=game_data["status"],
-            clients=clients,
-            blueScore=blue_score,
-            redScore=red_score,
-            bannerImage=banner_image  # Explicitly include banner image
-        )
-        
+        game_info = game_service.get_game(game_code)
         return game_info
     except ValueError as e:
-        raise HTTPException(
-            status_code=404,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get game info: {str(e)}"
-        )
+        print(f"Error in get_game endpoint: {e}")
+        raise HTTPException(status_code=500, detail="게임 정보를 불러오는데 실패했습니다.")
 
 @router.get("/games/{game_code}/clients", response_model=GameClients)
 async def get_game_clients(game_code: str):
