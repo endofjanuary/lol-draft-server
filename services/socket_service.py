@@ -1,6 +1,7 @@
 import socketio
 import time
 import logging
+import asyncio
 from typing import Dict, List
 from models import Client
 
@@ -21,6 +22,7 @@ class SocketService:
             max_http_buffer_size=1e8
         )
         self.clients: Dict[str, Client] = {}
+        self.socket_id_map = {}  # 이전 소켓 ID와 새로운 소켓 ID 매핑
         # Need to have access to game_service
         self.game_service = None
 
@@ -29,6 +31,9 @@ class SocketService:
         if position == 'spectator':
             return True
             
+        if not self.game_service or not hasattr(self.game_service, 'game_settings'):
+            return False
+            
         game_settings = self.game_service.game_settings.get(game_code)
         if not game_settings:
             return False
@@ -36,7 +41,6 @@ class SocketService:
         valid_positions = {
             'single': ['all'],
             '1v1': ['blue1', 'red1'],
-            '5v5': [f'blue{i}' for i in range(1, 6)] + [f'red{i}' for i in range(1, 6)]
         }
         
         return position in valid_positions.get(game_settings.playerType, [])
@@ -47,21 +51,22 @@ class SocketService:
             return True
             
         return not any(
-            client.position == position and client.gameCode == game_code
+            client.get('position') == position and client.get('gameCode') == game_code
             for client in self.clients.values()
         )
 
-    def _is_clients_turn(self, client: Client, phase: int, player_type: str) -> bool:
+    def _is_clients_turn(self, client: dict, phase: int, player_type: str) -> bool:
         """Check if it's the client's turn based on phase and position"""
         if player_type == "single":
             return True
 
-        # Get team and position number from client position
-        if client.position == "spectator":
+        # Get team and position from client position
+        position = client.get('position')
+        if position == "spectator":
             return False
 
-        team = client.position[:-1]  # 'blue' or 'red'
-        position_num = int(client.position[-1:])  # 1-5
+        team = position[:-1]  # 'blue' or 'red'
+        position_num = int(position[-1:])  # 1-5
 
         # Phase ranges
         BAN_PHASE_1 = range(1, 7)    # 1-6
@@ -99,46 +104,27 @@ class SocketService:
         else:  # 5v5
             return team == required_team and position_num == required_pos
 
-    def _is_host(self, client: Client) -> bool:
-        """Check if client is the host (earliest joinedAt in the game)"""
-        game_clients = [
-            c for c in self.clients.values()
-            if c.gameCode == client.gameCode
-        ]
-        if not game_clients:
-            return False
-        return client.joinedAt == min(c.joinedAt for c in game_clients)
+    def _is_host(self, client: dict) -> bool:
+        """Check if client is the host"""
+        # 클라이언트 객체에 저장된 isHost 값을 반환
+        return client.get('isHost', False)
 
     def _are_all_players_ready(self, game_code: str, player_type: str) -> bool:
         """Check if all required positions are filled and ready"""
         game_clients = [
             client for client in self.clients.values()
-            if client.gameCode == game_code and client.position != 'spectator'
+            if client.get('gameCode') == game_code and client.get('position') != 'spectator'
         ]
 
         if player_type == "1v1":
             # Need exactly one blue and one red player
-            blue_ready = any(c.position == "blue1" and c.isReady for c in game_clients)
-            red_ready = any(c.position == "red1" and c.isReady for c in game_clients)
+            blue_ready = any(c.get('position') == "blue1" and c.get('isReady') for c in game_clients)
+            red_ready = any(c.get('position') == "red1" and c.get('isReady') for c in game_clients)
             return blue_ready and red_ready
-
-        elif player_type == "5v5":
-            # Need all 5 positions filled and ready for both teams
-            blue_positions = set(f"blue{i}" for i in range(1, 6))
-            red_positions = set(f"red{i}" for i in range(1, 6))
-            
-            filled_and_ready = set(
-                client.position
-                for client in game_clients
-                if client.isReady
-            )
-            
-            return (blue_positions.issubset(filled_and_ready) and 
-                   red_positions.issubset(filled_and_ready))
 
         return True  # For 'single' mode
 
-    def _can_confirm_selection(self, client: Client, phase: int, player_type: str) -> bool:
+    def _can_confirm_selection(self, client: dict, phase: int, player_type: str) -> bool:
         """Check if client can confirm selection in current phase"""
         # Re-use existing turn validation logic
         return self._is_clients_turn(client, phase, player_type)
@@ -152,159 +138,209 @@ class SocketService:
             # Fallback to a simpler timestamp format (milliseconds)
             return int(time.time() * 1000)
 
-    async def handle_connect(self, sid: str, environ):
-        logger.debug(f"Client attempting to connect: {sid}")
-        await self.sio.emit('connection_success', {'sid': sid}, room=sid)
-        logger.info(f"Client connected: {sid}")
-
-    async def handle_disconnect(self, sid: str):
-        if sid in self.clients:
-            client = self.clients[sid]
-            # Broadcast client_left event to the game room
-            await self.sio.emit('client_left', {
-                'nickname': client.nickname,
-                'position': client.position
-            }, room=client.gameCode)
+    async def handle_connect(self, sid, environ, auth):
+        """클라이언트 연결 시 호출되는 핸들러"""
+        try:
+            # 클라이언트 정보 저장
+            self.clients[sid] = {
+                'sid': sid,
+                'socketId': auth.get('socketId') if auth else None,
+                'gameCode': None,
+                'nickname': None,
+                'position': None,
+                'isHost': False,
+                'isReady': False,
+                'champion': None,
+                'isConfirmed': False
+            }
+            print(f"Client connected: {sid}")
             
-            logger.info(f"Client disconnected: {client.nickname} ({sid}) from game {client.gameCode}")
-            del self.clients[sid]
-        else:
-            logger.info(f"Unknown client disconnected: {sid}")
+            # 연결 성공 이벤트 전송
+            await self.sio.emit('connection_success', {'sid': sid}, room=sid)
+            
+            return True
+        except Exception as e:
+            print(f"Error in handle_connect: {e}")
+            return False
+
+    async def handle_disconnect(self, sid: str, namespace: str = None):
+        """클라이언트 연결 해제 시 호출되는 핸들러"""
+        try:
+            if sid in self.clients:
+                client = self.clients[sid]
+                # 게임 방에서 나가기
+                if client.get('gameCode'):
+                    await self.sio.leave_room(sid, client['gameCode'])
+                    # 다른 클라이언트들에게 알림
+                    await self.sio.emit('client_left', {
+                        'nickname': client.get('nickname', 'Unknown'),
+                        'position': client.get('position', 'spectator')
+                    }, room=client['gameCode'])
+                # 클라이언트 정보 삭제
+                del self.clients[sid]
+                print(f"Client disconnected: {sid}")
+        except Exception as e:
+            print(f"Error in handle_disconnect: {e}")
 
     async def handle_join_game(self, sid: str, data: dict):
+        """게임 참가 요청 처리"""
         try:
-            game_code = data['gameCode']
+            game_code = data.get('gameCode')
+            nickname = data.get('nickname')
             position = data.get('position', 'spectator')
+            socket_id = data.get('socketId')
 
-            # Validate position if specified
-            if position != 'spectator' and not self._validate_position(position, game_code):
-                return {"status": "error", "message": "Invalid position"}
+            if not game_code or not nickname:
+                return {"status": "error", "message": "게임 코드와 닉네임은 필수입니다."}
 
-            if not self._is_position_available(position, game_code):
-                return {"status": "error", "message": "Position already taken"}
-
-            # Create client object
-            client = Client(
-                socketId=sid,
-                gameCode=game_code,
-                position=position,
-                joinedAt=self._get_timestamp(),
-                nickname=data['nickname']
-            )
+            # 게임에 참가한 플레이어가 있는지 확인
+            existing_clients = [
+                c for c in self.clients.values()
+                if c.get('gameCode') == game_code
+            ]
             
-            # Store client and join room
-            self.clients[sid] = client
+            # 첫 번째 참가자인 경우 호스트로 설정
+            is_host = len(existing_clients) == 0
+            
+            # 클라이언트 정보 업데이트
+            self.clients[sid] = {
+                'sid': sid,
+                'socketId': socket_id,
+                'gameCode': game_code,
+                'nickname': nickname,
+                'position': position,
+                'isHost': is_host,
+                'isReady': False,
+                'champion': None,
+                'isConfirmed': False
+            }
+
+            # 게임 방에 참가
             await self.sio.enter_room(sid, game_code)
-            
-            # Broadcast join event
+
+            # 다른 클라이언트들에게 알림
             await self.sio.emit('client_joined', {
-                'nickname': client.nickname,
-                'position': position
+                'nickname': nickname,
+                'position': position,
+                'isHost': is_host
             }, room=game_code)
-            
-            logger.info(f"Client joined: {client.nickname} ({sid}) to game {client.gameCode}")
-            return {"status": "success", "message": "Successfully joined the game"}
-            
+
+            print(f"Client joined game: {nickname} ({sid}), isHost: {is_host}")
+            return {
+                "status": "success",
+                "data": {
+                    "socket_id": sid,
+                    "position": position,
+                    "isHost": is_host,
+                    "clientId": sid
+                }
+            }
         except Exception as e:
-            logger.error(f"Error during join_game: {str(e)}")
-            return {"status": "error", "message": str(e)}
+            print(f"Error in handle_join_game: {e}")
+            return {"status": "error", "message": "게임 참가에 실패했습니다."}
 
     async def handle_position_change(self, sid: str, data: dict):
         """Handle client position change request"""
         try:
             if sid not in self.clients:
-                return {"status": "error", "message": "Client not found"}
+                return {"status": "error", "message": "클라이언트를 찾을 수 없습니다."}
 
             new_position = data.get('position')
             if not new_position:
-                return {"status": "error", "message": "Position not specified"}
+                return {"status": "error", "message": "포지션이 지정되지 않았습니다."}
 
             client = self.clients[sid]
-            game_code = client.gameCode
+            game_code = client.get('gameCode')
+
+            if not game_code:
+                return {"status": "error", "message": "게임 코드가 없습니다."}
 
             # Validate new position
             if not self._validate_position(new_position, game_code):
-                return {"status": "error", "message": "Invalid position"}
+                return {"status": "error", "message": "유효하지 않은 포지션입니다."}
 
             # Check if position is available
             if not self._is_position_available(new_position, game_code):
-                return {"status": "error", "message": "Position already taken"}
+                return {"status": "error", "message": "이미 사용 중인 포지션입니다."}
 
             # Store previous position for notification
-            old_position = client.position
+            old_position = client.get('position')
 
             # Update client position
-            client.position = new_position
+            client['position'] = new_position
             self.clients[sid] = client
 
             # Broadcast position change to all clients in the game
             await self.sio.emit('position_changed', {
-                'nickname': client.nickname,
+                'nickname': client.get('nickname'),
                 'oldPosition': old_position,
                 'newPosition': new_position
             }, room=game_code)
 
-            logger.info(f"Client {client.nickname} changed position from {old_position} to {new_position}")
-            return {"status": "success", "message": "Position changed successfully"}
+            print(f"Client {client.get('nickname')} changed position from {old_position} to {new_position}")
+            return {"status": "success", "message": "포지션이 성공적으로 변경되었습니다."}
 
         except Exception as e:
-            logger.error(f"Error during position change: {str(e)}")
+            print(f"Error during position change: {e}")
             return {"status": "error", "message": str(e)}
 
     async def handle_ready_state(self, sid: str, data: dict):
         """Handle client ready state change request"""
         try:
             if sid not in self.clients:
-                return {"status": "error", "message": "Client not found"}
+                return {"status": "error", "message": "클라이언트를 찾을 수 없습니다."}
 
             client = self.clients[sid]
             is_ready = data.get('isReady', False)
 
             # Update client ready state
-            client.isReady = is_ready
+            client['isReady'] = is_ready
             self.clients[sid] = client
 
             # Broadcast ready state change to all clients in the game
             await self.sio.emit('ready_state_changed', {
-                'nickname': client.nickname,
-                'position': client.position,
+                'nickname': client.get('nickname'),
+                'position': client.get('position'),
                 'isReady': is_ready
-            }, room=client.gameCode)
+            }, room=client.get('gameCode'))
 
-            logger.info(f"Client {client.nickname} ready state changed to: {is_ready}")
-            return {"status": "success", "message": "Ready state updated successfully"}
+            print(f"Client {client.get('nickname')} ready state changed to: {is_ready}")
+            return {"status": "success", "message": "준비 상태가 성공적으로 업데이트되었습니다."}
 
         except Exception as e:
-            logger.error(f"Error during ready state change: {str(e)}")
+            print(f"Error during ready state change: {e}")
             return {"status": "error", "message": str(e)}
 
     async def handle_champion_select(self, sid: str, data: dict):
         """Handle champion selection request"""
         try:
             if sid not in self.clients:
-                return {"status": "error", "message": "Client not found"}
+                return {"status": "error", "message": "클라이언트를 찾을 수 없습니다."}
 
             champion = data.get('champion')
             if not champion:
-                return {"status": "error", "message": "Champion not specified"}
+                return {"status": "error", "message": "챔피언이 지정되지 않았습니다."}
 
             client = self.clients[sid]
-            game_code = client.gameCode
+            game_code = client.get('gameCode')
+
+            if not game_code:
+                return {"status": "error", "message": "게임 코드가 없습니다."}
 
             # Get game settings and status
             game_settings = self.game_service.game_settings.get(game_code)
             game_status = self.game_service.game_status.get(game_code)
             
             if not game_settings or not game_status:
-                return {"status": "error", "message": "Game not found"}
+                return {"status": "error", "message": "게임을 찾을 수 없습니다."}
                 
             # Validate phase is between 1 and 20
             if game_status.phase < 1 or game_status.phase > 20:
-                return {"status": "error", "message": "Champion selection not allowed in current phase"}
+                return {"status": "error", "message": "현재 페이즈에서는 챔피언 선택이 불가능합니다."}
 
             # Check if it's client's turn
             if not self._is_clients_turn(client, game_status.phase, game_settings.playerType):
-                return {"status": "error", "message": "Not your turn"}
+                return {"status": "error", "message": "당신의 차례가 아닙니다."}
 
             # Update phase data with selected champion
             game_status.phaseData[game_status.phase] = champion
@@ -315,51 +351,54 @@ class SocketService:
 
             # Broadcast champion selection to all clients in the game
             await self.sio.emit('champion_selected', {
-                'nickname': client.nickname,
-                'position': client.position,
+                'nickname': client.get('nickname'),
+                'position': client.get('position'),
                 'champion': champion,
                 'phase': game_status.phase
             }, room=game_code)
 
-            logger.info(f"Champion selected: {champion} by {client.nickname} in phase {game_status.phase}")
-            return {"status": "success", "message": "Champion selected successfully"}
+            print(f"Champion selected: {champion} by {client.get('nickname')} in phase {game_status.phase}")
+            return {"status": "success", "message": "챔피언이 성공적으로 선택되었습니다."}
 
         except Exception as e:
-            logger.error(f"Error during champion selection: {str(e)}")
+            print(f"Error during champion selection: {e}")
             return {"status": "error", "message": str(e)}
 
     async def handle_confirm_selection(self, sid: str, data: dict):
         """Handle champion selection confirmation and phase progression"""
         try:
             if sid not in self.clients:
-                return {"status": "error", "message": "Client not found"}
+                return {"status": "error", "message": "클라이언트를 찾을 수 없습니다."}
 
             client = self.clients[sid]
-            game_code = client.gameCode
+            game_code = client.get('gameCode')
+
+            if not game_code:
+                return {"status": "error", "message": "게임 코드가 없습니다."}
 
             # Get game settings and status
             game_settings = self.game_service.game_settings.get(game_code)
             game_status = self.game_service.game_status.get(game_code)
             
             if not game_settings or not game_status:
-                return {"status": "error", "message": "Game not found"}
+                return {"status": "error", "message": "게임을 찾을 수 없습니다."}
 
             current_phase = game_status.phase
 
             # Check if current phase is valid for progression
             if current_phase >= 21:
-                return {"status": "error", "message": "Draft is already complete"}
+                return {"status": "error", "message": "이미 밴픽이 완료되었습니다."}
 
             # Check if it's client's turn to confirm
             if not self._can_confirm_selection(client, current_phase, game_settings.playerType):
-                return {"status": "error", "message": "Not your turn to confirm"}
+                return {"status": "error", "message": "당신의 차례가 아닙니다."}
 
             # Define ban phases
             BAN_PHASES = list(range(1, 7)) + list(range(13, 17))  # Phases 1-6 and 13-16 are ban phases
             
             # Check if a champion is selected in current phase (only required for pick phases)
             if not game_status.phaseData[current_phase] and current_phase not in BAN_PHASES:
-                return {"status": "error", "message": "No champion selected for current phase"}
+                return {"status": "error", "message": "현재 페이즈에서 선택된 챔피언이 없습니다."}
 
             # Update phase
             game_status.phase = current_phase + 1
@@ -371,48 +410,51 @@ class SocketService:
             # Broadcast phase progression to all clients in the game
             await self.sio.emit('phase_progressed', {
                 'gameCode': game_code,
-                'confirmedBy': client.nickname,
+                'confirmedBy': client.get('nickname'),
                 'fromPhase': current_phase,
                 'toPhase': game_status.phase,
                 'confirmedChampion': game_status.phaseData[current_phase],
                 'timestamp': game_status.lastUpdatedAt
             }, room=game_code)
 
-            logger.info(f"Phase progressed from {current_phase} to {game_status.phase} by {client.nickname}")
-            return {"status": "success", "message": "Phase progressed successfully"}
+            print(f"Phase progressed from {current_phase} to {game_status.phase} by {client.get('nickname')}")
+            return {"status": "success", "message": "페이즈가 성공적으로 진행되었습니다."}
 
         except Exception as e:
-            logger.error(f"Error during phase progression: {str(e)}")
+            print(f"Error during phase progression: {e}")
             return {"status": "error", "message": str(e)}
 
     async def handle_start_draft(self, sid: str, data: dict):
         """Handle draft start request"""
         try:
             if sid not in self.clients:
-                return {"status": "error", "message": "Client not found"}
+                return {"status": "error", "message": "클라이언트를 찾을 수 없습니다."}
 
             client = self.clients[sid]
-            game_code = client.gameCode
+            game_code = client.get('gameCode')
+
+            if not game_code:
+                return {"status": "error", "message": "게임 코드가 없습니다."}
 
             # Check if client is host
             if not self._is_host(client):
-                return {"status": "error", "message": "Only the host can start the draft"}
+                return {"status": "error", "message": "호스트만 게임을 시작할 수 있습니다."}
 
             # Get game settings and status
             game_settings = self.game_service.game_settings.get(game_code)
             game_status = self.game_service.game_status.get(game_code)
             
             if not game_settings or not game_status:
-                return {"status": "error", "message": "Game not found"}
+                return {"status": "error", "message": "게임을 찾을 수 없습니다."}
 
             # Check if game is in initial phase
             if game_status.phase != 0:
-                return {"status": "error", "message": "Draft has already started"}
+                return {"status": "error", "message": "이미 게임이 시작되었습니다."}
 
             # For non-single modes, check if all players are ready
             if game_settings.playerType != "single":
                 if not self._are_all_players_ready(game_code, game_settings.playerType):
-                    return {"status": "error", "message": "All players must be ready to start"}
+                    return {"status": "error", "message": "모든 플레이어가 준비 상태여야 합니다."}
 
             # Update game status to start draft
             game_status.phase = 1
@@ -422,44 +464,47 @@ class SocketService:
             # Broadcast draft start to all clients in the game
             await self.sio.emit('draft_started', {
                 'gameCode': game_code,
-                'startedBy': client.nickname,
+                'startedBy': client.get('nickname'),
                 'timestamp': game_status.lastUpdatedAt
             }, room=game_code)
 
-            logger.info(f"Draft started in game {game_code} by {client.nickname}")
-            return {"status": "success", "message": "Draft started successfully"}
+            print(f"Draft started in game {game_code} by {client.get('nickname')}")
+            return {"status": "success", "message": "게임이 성공적으로 시작되었습니다."}
 
         except Exception as e:
-            logger.error(f"Error during draft start: {str(e)}")
+            print(f"Error during draft start: {e}")
             return {"status": "error", "message": str(e)}
 
     async def handle_confirm_result(self, sid: str, data: dict):
         """Handle game result confirmation by the host"""
         try:
             if sid not in self.clients:
-                return {"status": "error", "message": "Client not found"}
+                return {"status": "error", "message": "클라이언트를 찾을 수 없습니다."}
 
             client = self.clients[sid]
-            game_code = client.gameCode
+            game_code = client.get('gameCode')
+
+            if not game_code:
+                return {"status": "error", "message": "게임 코드가 없습니다."}
 
             # Check if client is host
             if not self._is_host(client):
-                return {"status": "error", "message": "Only the host can confirm game result"}
+                return {"status": "error", "message": "호스트만 게임 결과를 확정할 수 있습니다."}
 
             # Get game settings and status
             game_settings = self.game_service.game_settings.get(game_code)
             game_status = self.game_service.game_status.get(game_code)
             
             if not game_settings or not game_status:
-                return {"status": "error", "message": "Game not found"}
+                return {"status": "error", "message": "게임을 찾을 수 없습니다."}
 
             # Check if game phase is 21 (game end)
             if game_status.phase != 21:
-                return {"status": "error", "message": "Game is not in completion phase"}
+                return {"status": "error", "message": "게임이 완료 단계가 아닙니다."}
 
             winner = data.get('winner')
             if winner not in ['blue', 'red']:
-                return {"status": "error", "message": "Invalid winner value. Must be 'blue' or 'red'"}
+                return {"status": "error", "message": "승자 값이 잘못되었습니다. 'blue' 또는 'red'여야 합니다."}
 
             # Record the winner in phase data
             game_status.phaseData[21] = winner
@@ -495,8 +540,8 @@ class SocketService:
 
             # Reset ready state for all players in this game
             for client_sid, client_obj in self.clients.items():
-                if client_obj.gameCode == game_code and client_obj.position != 'spectator':
-                    client_obj.isReady = False
+                if client_obj.get('gameCode') == game_code and client_obj.get('position') != 'spectator':
+                    client_obj['isReady'] = False
                     self.clients[client_sid] = client_obj
 
             # Save updated status
@@ -506,7 +551,7 @@ class SocketService:
             # Broadcast game result confirmation to all clients in the game
             await self.sio.emit('game_result_confirmed', {
                 'gameCode': game_code,
-                'confirmedBy': client.nickname,
+                'confirmedBy': client.get('nickname'),
                 'winner': winner,
                 'blueScore': game_result.blueScore,
                 'redScore': game_result.redScore,
@@ -514,11 +559,11 @@ class SocketService:
                 'timestamp': game_status.lastUpdatedAt
             }, room=game_code)
 
-            logger.info(f"Game result confirmed in {game_code}: {winner} wins. Moving to set {game_status.setNumber}")
-            return {"status": "success", "message": "Game result confirmed successfully"}
+            print(f"Game result confirmed in {game_code}: {winner} wins. Moving to set {game_status.setNumber}")
+            return {"status": "success", "message": "게임 결과가 성공적으로 확정되었습니다."}
 
         except Exception as e:
-            logger.error(f"Error during game result confirmation: {str(e)}")
+            print(f"Error during game result confirmation: {e}")
             return {"status": "error", "message": str(e)}
 
     def setup(self):

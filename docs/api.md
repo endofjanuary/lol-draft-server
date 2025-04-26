@@ -2,6 +2,15 @@
 
 > 이 문서는 LoL Draft Server의 RESTful API 엔드포인트와 사용 방법을 설명합니다. 게임 생성, 정보 조회, 클라이언트 관리 등의 기능을 HTTP 요청으로 수행하는 방법을 제공합니다.
 
+## 최근 변경사항
+
+- 기본 롤 패치 버전을 `13.24.1`로 업데이트
+- 클라이언트 데이터 구조를 `dict` 타입으로 변경하여 유연성 향상
+- 응답 형식에 `clientId` 필드 추가하여 세션 관리 개선
+- 한글 오류 메시지 지원 추가
+- isHost 속성 처리 방식 개선
+- HTTP 상태 코드를 사용한 오류 응답 개선
+
 ## 1. 게임 생성 (Create Game)
 
 새 게임을 생성하고 게임 코드를 얻습니다.
@@ -15,7 +24,7 @@ const createGame = async () => {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      version: "14.10.1",
+      version: "13.24.1", // 기본 버전 업데이트됨
       draftType: "tournament",
       playerType: "5v5",
       matchFormat: "bo3",
@@ -42,7 +51,7 @@ const createGameWithOptions = async () => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       // 필수 필드
-      version: "14.10.1",
+      version: "13.24.1", // 기본 버전 업데이트됨
       draftType: "tournament",
       playerType: "5v5",
       matchFormat: "bo3",
@@ -80,7 +89,7 @@ const createGameWithOptions = async () => {
 const createGame = async () => {
   try {
     const response = await axios.post("http://localhost:8000/games", {
-      version: "14.10.1",
+      version: "13.24.1", // 기본 버전 업데이트됨
       draftType: "tournament",
       playerType: "5v5",
       matchFormat: "bo3",
@@ -109,7 +118,7 @@ const getGameInfo = async (gameCode) => {
 
   if (!response.ok) {
     if (response.status === 404) {
-      throw new Error(`Game not found: ${gameCode}`);
+      throw new Error(`게임을 찾을 수 없습니다: ${gameCode}`);
     }
     const error = await response.json();
     throw new Error(error.detail);
@@ -125,7 +134,7 @@ const getGameInfo = async (gameCode) => {
     return response.data;
   } catch (error) {
     if (error.response.status === 404) {
-      throw new Error(`Game not found: ${gameCode}`);
+      throw new Error(`게임을 찾을 수 없습니다: ${gameCode}`);
     }
     throw new Error(error.response.data.detail);
   }
@@ -136,13 +145,9 @@ const getGameInfo = async (gameCode) => {
 
 ```javascript
 {
-  "game": {
-    "gameCode": "ab12cd34",
-    "createdAt": 1668457862000000,
-    "gameName": "롤드컵 결승"
-  },
+  "code": "ab12cd34", // 변경됨: gameCode 필드가 code로 변경
   "settings": {
-    "version": "14.10.1",
+    "version": "13.24.1",
     "draftType": "tournament",
     "playerType": "5v5",
     "matchFormat": "bo3",
@@ -155,21 +160,27 @@ const getGameInfo = async (gameCode) => {
     "blueTeamName": "Blue",
     "redTeamName": "Red",
     "lastUpdatedAt": 1668457862000000,
-    "phaseData": ["", "", "..."],
+    "phaseData": ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
     "setNumber": 1
   },
   "clients": [
     {
       "nickname": "Player1",
       "position": "blue1",
-      "isReady": true,    // 준비 상태 필드
-      "isHost": true      // 호스트 여부 필드 (방장인 경우 true)
+      "isReady": true,         // 준비 상태 필드
+      "isHost": true,          // 호스트 여부 필드 (방장인 경우 true)
+      "champion": null,        // 현재 선택한 챔피언
+      "isConfirmed": false,    // 챔피언 선택 확정 여부
+      "clientId": "socket-id-1" // 클라이언트 식별자로 사용되는 소켓 ID
     },
     {
       "nickname": "Player2",
       "position": "red1",
-      "isReady": false,   // 준비 상태 필드
-      "isHost": false     // 호스트 여부 필드 (방장이 아닌 경우 false)
+      "isReady": false,
+      "isHost": false,
+      "champion": null,
+      "isConfirmed": false,
+      "clientId": "socket-id-2"
     },
     // ... 기타 접속중인 클라이언트
   ],
@@ -198,7 +209,7 @@ const getGameClients = async (gameCode) => {
 
   if (!response.ok) {
     if (response.status === 404) {
-      throw new Error(`Game not found: ${gameCode}`);
+      throw new Error(`게임을 찾을 수 없습니다: ${gameCode}`);
     }
     const error = await response.json();
     throw new Error(error.detail);
@@ -216,12 +227,84 @@ const getGameClients = async (gameCode) => {
     return response.data;
   } catch (error) {
     if (error.response.status === 404) {
-      throw new Error(`Game not found: ${gameCode}`);
+      throw new Error(`게임을 찾을 수 없습니다: ${gameCode}`);
     }
     const errorMsg = error.response.data.detail;
     throw new Error(errorMsg);
   }
 };
+```
+
+## 오류 처리
+
+서버는 다음과 같은 HTTP 상태 코드를 사용하여 오류를 반환합니다:
+
+- **400 Bad Request**: 요청 형식이 잘못되었거나 필수 필드가 누락된 경우
+- **404 Not Found**: 요청한 게임 코드를 찾을 수 없는 경우
+- **409 Conflict**: 닉네임이나 포지션이 이미 사용 중인 경우
+- **500 Internal Server Error**: 서버 내부 오류가 발생한 경우
+
+**오류 응답 예시:**
+
+```json
+{
+  "detail": "게임을 찾을 수 없습니다: AB1234",
+  "status_code": 404
+}
+```
+
+## 데이터 모델
+
+### GameSetting
+
+게임 설정을 정의하는 데이터 모델입니다.
+
+```python
+class GameSetting(BaseModel):
+    version: str = "13.24.1"  # 기본 버전 업데이트됨
+    draftType: str = "tournament"
+    playerType: str = "1v1"  # "single", "1v1", "5v5"
+    matchFormat: str = "bo1"  # "bo1", "bo3", "bo5"
+    timeLimit: bool = False
+    globalBans: List[str] = []
+    bannerImage: Optional[str] = None
+```
+
+### GameStatus
+
+게임 상태를 정의하는 데이터 모델입니다.
+
+```python
+class GameStatus(BaseModel):
+    phase: int = 0  # 0: 로비, 1-6: 밴 페이즈1, 7-12: 픽 페이즈1, 13-16: 밴 페이즈2, 17-20: 픽 페이즈2, 21: 결과 확인
+    phaseData: List[str] = []  # 각 페이즈의 선택한 챔피언 이름 저장
+    lastUpdatedAt: int = 0
+    setNumber: int = 1  # 현재 세트 번호 (bo3에서는 1-3, bo5에서는 1-5)
+    blueTeamName: str = "Blue"
+    redTeamName: str = "Red"
+    blueScore: int = 0  # 블루팀의 세트 스코어
+    redScore: int = 0   # 레드팀의 세트 스코어
+```
+
+### Client
+
+클라이언트 정보를 저장하는 클래스입니다.
+
+```python
+class Client(dict):
+    """
+    클라이언트 정보를 저장하는 딕셔너리 클래스
+
+    속성:
+    - nickname: 클라이언트 닉네임
+    - position: 게임 내 포지션 (blue1, red3, spectator 등)
+    - isReady: 준비 상태
+    - isHost: 호스트 여부
+    - champion: 현재 선택한 챔피언
+    - isConfirmed: 챔피언 선택 확정 여부
+    - clientId: 클라이언트 식별자
+    """
+    pass
 ```
 
 ## 완전한 프론트엔드 통합 예시
@@ -232,7 +315,7 @@ const startNewGame = async () => {
   try {
     // 1. 게임 생성
     const game = await createGame();
-    console.log(`Game created with code: ${game.gameCode}`);
+    console.log(`게임이 생성되었습니다. 코드: ${game.gameCode}`);
 
     // 2. 소켓 연결
     const socket = io("http://localhost:8000", {
@@ -241,7 +324,7 @@ const startNewGame = async () => {
 
     // 3. 연결 성공 시 게임 참가
     socket.on("connection_success", (data) => {
-      console.log(`Connected with socket ID: ${data.sid}`);
+      console.log(`소켓 ID로 연결됨: ${data.sid}`);
 
       // 4. 게임에 참가 (블루팀 1번 포지션으로)
       socket.emit(
@@ -253,36 +336,18 @@ const startNewGame = async () => {
         },
         (response) => {
           if (response.status === "success") {
-            console.log("Successfully joined game as blue1");
-
-            // 5. 준비 완료 상태로 설정
-            socket.emit("change_ready_state", { isReady: true });
+            console.log("게임에 성공적으로 참가했습니다.");
+          } else {
+            console.error(`게임 참가 오류: ${response.message}`);
           }
         }
       );
     });
 
-    // 6. 다른 플레이어 참가 감지
-    socket.on("client_joined", (data) => {
-      console.log(`${data.nickname} joined as ${data.position}`);
-    });
-
-    // 7. 게임 정보 주기적으로 확인
-    setInterval(async () => {
-      try {
-        const gameInfo = await getGameInfo(game.gameCode);
-        console.log("Current phase:", gameInfo.status.phase);
-
-        // 필요에 따라 UI 업데이트
-      } catch (error) {
-        console.error("Error fetching game info:", error);
-      }
-    }, 5000);
-
-    return { game, socket };
+    // 필요한 이벤트 핸들러 등록
+    // ...
   } catch (error) {
-    console.error("Error starting game:", error);
-    throw error;
+    console.error("오류 발생:", error.message);
   }
 };
 ```

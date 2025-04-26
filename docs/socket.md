@@ -14,6 +14,14 @@
 - [재연결 전략](#재연결-전략)
 - [설치 및 참고사항](#설치-및-참고사항)
 
+## 최근 변경사항
+
+- 클라이언트 식별을 위한 `clientId` 필드 추가
+- 재연결 메커니즘 개선 (`join_game` 이벤트에 이전 소켓 ID 전달 가능)
+- 클라이언트의 특정 이벤트 응답에 상태 정보 확장
+- 챔피언 선택 및 확정 관련 이벤트 개선
+- 한글 오류 메시지 지원 추가
+
 ## 서버 엔드포인트
 
 Socket.IO 서버는 다음 주소에서 실행됩니다:
@@ -25,27 +33,27 @@ Socket.IO 서버는 다음 주소에서 실행됩니다:
 
 ### 클라이언트 → 서버 이벤트
 
-| 이벤트 명          | 설명           | 요청 데이터                        | 응답 형식                   |
-| ------------------ | -------------- | ---------------------------------- | --------------------------- |
-| join_game          | 게임 참가      | { gameCode, nickname, [position] } | { status, message, [data] } |
-| change_position    | 포지션 변경    | { position }                       | { status, message }         |
-| change_ready_state | 준비 상태 변경 | { isReady }                        | { status, message }         |
-| select_champion    | 챔피언 선택    | { champion }                       | { status, message }         |
-| confirm_selection  | 선택 확정      | {}                                 | { status, message }         |
-| start_draft        | 드래프트 시작  | {}                                 | { status, message }         |
-| confirm_result     | 게임 결과 확정 | { winner }                         | { status, message }         |
+| 이벤트 명          | 설명           | 요청 데이터                                 | 응답 형식                   |
+| ------------------ | -------------- | ------------------------------------------- | --------------------------- |
+| join_game          | 게임 참가      | { gameCode, nickname, position, socketId? } | { status, message, [data] } |
+| change_position    | 포지션 변경    | { position }                                | { status, message }         |
+| change_ready_state | 준비 상태 변경 | { isReady }                                 | { status, message }         |
+| select_champion    | 챔피언 선택    | { champion }                                | { status, message }         |
+| confirm_selection  | 선택 확정      | {}                                          | { status, message }         |
+| start_draft        | 드래프트 시작  | {}                                          | { status, message }         |
+| confirm_result     | 게임 결과 확정 | { winner }                                  | { status, message }         |
 
 ### 서버 → 클라이언트 이벤트
 
 | 이벤트 명             | 설명            | 데이터 형식                                                                      |
 | --------------------- | --------------- | -------------------------------------------------------------------------------- |
 | connection_success    | 연결 성공       | { sid }                                                                          |
-| client_joined         | 클라이언트 참가 | { nickname, position }                                                           |
+| client_joined         | 클라이언트 참가 | { nickname, position, isHost }                                                   |
 | client_left           | 클라이언트 퇴장 | { nickname, position }                                                           |
 | position_changed      | 포지션 변경     | { nickname, oldPosition, newPosition }                                           |
 | ready_state_changed   | 준비 상태 변경  | { nickname, position, isReady }                                                  |
 | draft_started         | 드래프트 시작   | { gameCode, startedBy, timestamp }                                               |
-| champion_selected     | 챔피언 선택     | { nickname, position, champion, phase }                                          |
+| champion_selected     | 챔피언 선택     | { nickname, position, champion, phase, isConfirmed }                             |
 | phase_progressed      | 페이즈 진행     | { gameCode, confirmedBy, fromPhase, toPhase, confirmedChampion, timestamp }      |
 | game_result_confirmed | 게임 결과 확정  | { gameCode, confirmedBy, winner, blueScore, redScore, nextSetNumber, timestamp } |
 
@@ -71,21 +79,24 @@ const socket = io("http://localhost:8000", {
 });
 
 socket.on("connect", () => {
-  console.log("Connected to server");
+  console.log("서버에 연결됨");
 });
 
 socket.on("connection_success", (data) => {
-  console.log("Connection successful. Socket ID:", data.sid);
+  console.log("연결 성공. 소켓 ID:", data.sid);
+
+  // 소켓 ID를 로컬 스토리지에 저장하여 재연결 시 사용
+  localStorage.setItem("socketId", data.sid);
 });
 
 socket.on("disconnect", () => {
-  console.log("Disconnected from server");
+  console.log("서버와 연결 끊김");
 });
 
 // 다른 클라이언트 나가는 것 감지
 socket.on("client_left", (data) => {
   console.log(
-    `${data.nickname} left the game (was in position: ${data.position})`
+    `${data.nickname}님이 게임을 나갔습니다 (포지션: ${data.position})`
   );
   // 연결 해제된 클라이언트 UI 업데이트
 });
@@ -100,17 +111,40 @@ socket.on("client_left", (data) => {
 **요청:**
 
 ```javascript
+// 새로운 연결로 게임 참가
 socket.emit(
   "join_game",
   {
     gameCode: "ab12cd34", // 참가할 게임 코드
-    nickname: "SummonerName", // 플레이어 닉네임
+    nickname: "소환사이름", // 플레이어 닉네임
     position: "blue1", // 선택적: 특정 포지션 (기본값: "spectator")
   },
   (response) => {
     console.log(response); // 응답 처리
+
+    if (response.status === "success") {
+      // 클라이언트 ID 저장
+      localStorage.setItem("clientId", response.data.clientId);
+    }
   }
 );
+
+// 재연결 시 이전 소켓 ID 사용
+const previousSocketId = localStorage.getItem("socketId");
+if (previousSocketId) {
+  socket.emit(
+    "join_game",
+    {
+      gameCode: "ab12cd34",
+      nickname: "소환사이름",
+      position: "blue1",
+      socketId: previousSocketId, // 이전 소켓 ID 제공
+    },
+    (response) => {
+      console.log("재연결 응답:", response);
+    }
+  );
+}
 ```
 
 **응답:**
@@ -118,7 +152,12 @@ socket.emit(
 ```javascript
 {
   status: "success", // 또는 "error"
-  message: "Successfully joined the game" // 또는 오류 메시지
+  message: "게임에 성공적으로 참가했습니다", // 또는 오류 메시지
+  data: {
+    position: "blue1",
+    isHost: true,
+    clientId: "socket-id-123" // 클라이언트 식별자
+  }
 }
 ```
 
@@ -126,8 +165,9 @@ socket.emit(
 
 ```javascript
 {
-  nickname: "SummonerName",
-  position: "blue1"
+  nickname: "소환사이름",
+  position: "blue1",
+  isHost: true // 호스트 여부
 }
 ```
 
@@ -156,7 +196,7 @@ socket.emit(
 ```javascript
 {
   status: "success", // 또는 "error"
-  message: "Position changed successfully" // 또는 오류 메시지
+  message: "포지션이 성공적으로 변경되었습니다" // 또는 오류 메시지
 }
 ```
 
@@ -164,7 +204,7 @@ socket.emit(
 
 ```javascript
 {
-  nickname: "SummonerName",
+  nickname: "소환사이름",
   oldPosition: "blue1",
   newPosition: "red1"
 }
@@ -195,7 +235,7 @@ socket.emit(
 ```javascript
 {
   status: "success", // 또는 "error"
-  message: "Ready state updated successfully" // 또는 오류 메시지
+  message: "준비 상태가 업데이트되었습니다" // 또는 오류 메시지
 }
 ```
 
@@ -203,7 +243,7 @@ socket.emit(
 
 ```javascript
 {
-  nickname: "SummonerName",
+  nickname: "소환사이름",
   position: "blue1",
   isReady: true
 }
@@ -215,7 +255,7 @@ socket.emit(
 
 **이벤트:** `start_draft`
 
-드래프트 과정을 시작합니다. 호스트(가장 먼저 참가한 플레이어)만 시작할 수 있습니다.
+호스트만 사용 가능한 이벤트로, 모든 필요한 플레이어가 준비되면 드래프트 프로세스를 시작합니다.
 
 **요청:**
 
@@ -230,7 +270,7 @@ socket.emit("start_draft", {}, (response) => {
 ```javascript
 {
   status: "success", // 또는 "error"
-  message: "Draft started successfully" // 또는 오류 메시지
+  message: "드래프트가 시작되었습니다" // 또는 오류 메시지
 }
 ```
 
@@ -239,7 +279,7 @@ socket.emit("start_draft", {}, (response) => {
 ```javascript
 {
   gameCode: "ab12cd34",
-  startedBy: "HostSummoner",
+  startedBy: "소환사이름", // 드래프트를 시작한 호스트의 닉네임
   timestamp: 1668457862000000
 }
 ```
@@ -248,7 +288,7 @@ socket.emit("start_draft", {}, (response) => {
 
 **이벤트:** `select_champion`
 
-드래프트 중 자신의 턴에 챔피언을 선택합니다.
+현재 차례인 플레이어가 챔피언을 선택합니다. 이 선택은 확정되기 전까지 변경 가능합니다.
 
 **요청:**
 
@@ -256,7 +296,7 @@ socket.emit("start_draft", {}, (response) => {
 socket.emit(
   "select_champion",
   {
-    champion: "Ahri", // 챔피언 이름
+    champion: "Ahri", // 챔피언 ID
   },
   (response) => {
     console.log(response);
@@ -269,7 +309,7 @@ socket.emit(
 ```javascript
 {
   status: "success", // 또는 "error"
-  message: "Champion selected successfully" // 또는 오류 메시지
+  message: "챔피언이 선택되었습니다" // 또는 오류 메시지
 }
 ```
 
@@ -277,10 +317,11 @@ socket.emit(
 
 ```javascript
 {
-  nickname: "SummonerName",
+  nickname: "소환사이름",
   position: "blue1",
   champion: "Ahri",
-  phase: 7 // 현재 페이즈 번호
+  phase: 7, // 현재 페이즈 번호
+  isConfirmed: false // 선택이 확정되지 않음
 }
 ```
 
@@ -288,7 +329,7 @@ socket.emit(
 
 **이벤트:** `confirm_selection`
 
-챔피언 선택을 확정하고 다음 페이즈로 진행합니다.
+현재 차례인 플레이어가 선택한 챔피언을 확정하고 다음 페이즈로 진행합니다.
 
 **요청:**
 
@@ -303,7 +344,7 @@ socket.emit("confirm_selection", {}, (response) => {
 ```javascript
 {
   status: "success", // 또는 "error"
-  message: "Phase progressed successfully" // 또는 오류 메시지
+  message: "선택이 확정되었습니다" // 또는 오류 메시지
 }
 ```
 
@@ -312,19 +353,21 @@ socket.emit("confirm_selection", {}, (response) => {
 ```javascript
 {
   gameCode: "ab12cd34",
-  confirmedBy: "SummonerName",
-  fromPhase: 7,
-  toPhase: 8,
-  confirmedChampion: "Ahri",
-  timestamp: 1668457922000000
+  confirmedBy: "소환사이름", // 확정한 플레이어 닉네임
+  fromPhase: 7, // 이전 페이즈
+  toPhase: 8, // 다음 페이즈
+  confirmedChampion: "Ahri", // 확정된 챔피언
+  timestamp: 1668457862000000
 }
 ```
+
+## 게임 결과 및 다음 단계
 
 ### 게임 결과 확정
 
 **이벤트:** `confirm_result`
 
-게임 결과를 확정하고 다음 세트(베스트오브 시리즈에서)로 진행합니다.
+호스트가 게임의 승자를 선언하고 점수를 업데이트합니다.
 
 **요청:**
 
@@ -345,7 +388,7 @@ socket.emit(
 ```javascript
 {
   status: "success", // 또는 "error"
-  message: "Game result confirmed successfully" // 또는 오류 메시지
+  message: "게임 결과가 확정되었습니다" // 또는 오류 메시지
 }
 ```
 
@@ -354,280 +397,163 @@ socket.emit(
 ```javascript
 {
   gameCode: "ab12cd34",
-  confirmedBy: "HostSummoner",
-  winner: "blue",
-  blueScore: 1,
-  redScore: 0,
-  nextSetNumber: 2,
-  timestamp: 1668460000000000
+  confirmedBy: "소환사이름", // 결과를 확정한 호스트 닉네임
+  winner: "blue", // 승리한 팀
+  blueScore: 1, // 업데이트된 블루팀 점수
+  redScore: 0, // 업데이트된 레드팀 점수
+  nextSetNumber: 2, // 다음 세트 번호
+  timestamp: 1668457862000000
 }
-```
-
-## 권한 및 역할
-
-Socket 서비스는 여러 역할 기반 검증을 구현합니다:
-
-### 포지션 검증
-
-- 포지션은 게임의 playerType에 따라 검증됩니다:
-  - **Single 모드**: "all" 포지션만 유효
-  - **1v1 모드**: "blue1", "red1", "spectator"만 유효
-  - **5v5 모드**: "blue1"부터 "blue5", "red1"부터 "red5", "spectator"가 유효
-
-### 턴 검증
-
-- 드래프트 페이즈 동안 현재 페이즈에 따라 특정 플레이어만 행동할 수 있습니다:
-  - 밴 페이즈: 팀 주장(포지션 1)만 밴 가능
-  - 픽 페이즈: 해당 특정 페이즈에 지정된 플레이어만 픽 가능
-  - 1v1 모드의 경우, 팀의 턴일 때 해당 팀의 플레이어가 행동 가능
-
-### 호스트 권한
-
-- 호스트(가장 먼저 참가한 클라이언트)만 가능한 작업:
-  - 드래프트 시작
-  - 게임 결과 확정 및 다음 세트로 이동
-
-## 드래프트 페이즈 상세
-
-드래프트는 21개의 고유한 페이즈로 진행됩니다:
-
-1. **페이즈 0**: 준비 페이즈(플레이어가 준비될 때까지 대기)
-2. **페이즈 1-6**: 첫 번째 밴 페이즈(블루→레드→블루→레드→블루→레드)
-3. **페이즈 7-12**: 첫 번째 픽 페이즈(블루→레드→레드→블루→블루→레드)
-4. **페이즈 13-16**: 두 번째 밴 페이즈(레드→블루→레드→블루)
-5. **페이즈 17-20**: 두 번째 픽 페이즈(레드→블루→블루→레드)
-6. **페이즈 21**: 게임 결과 확정
-
-## 전체 워크플로우 예시
-
-### 게임 생성 및 참가
-
-```javascript
-// 1. Socket.IO 연결
-const socket = io("http://localhost:8000", {
-  transports: ["websocket"],
-});
-
-// 2. 연결 이벤트 처리
-socket.on("connect", () => console.log("Connected"));
-socket.on("connection_success", (data) => console.log("Socket ID:", data.sid));
-
-// 3. REST API로 게임 생성
-const createGame = async () => {
-  const response = await fetch("http://localhost:8000/games", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      version: "14.10.1",
-      draftType: "tournament",
-      playerType: "5v5",
-      matchFormat: "bo3",
-      timeLimit: true,
-    }),
-  });
-  return await response.json();
-};
-
-// 4. 게임에 참가
-const joinGame = (gameCode, nickname, position = "spectator") => {
-  socket.emit(
-    "join_game",
-    {
-      gameCode,
-      nickname,
-      position,
-    },
-    (response) => {
-      if (response.status === "success") {
-        console.log("Successfully joined game");
-      }
-    }
-  );
-};
-
-// 5. 포지션 변경
-const changePosition = (position) => {
-  socket.emit("change_position", { position }, (response) => {
-    console.log(response.message);
-  });
-};
-
-// 6. 준비 상태 변경
-const setReady = (isReady = true) => {
-  socket.emit("change_ready_state", { isReady }, (response) => {
-    console.log(response.message);
-  });
-};
-```
-
-### 드래프트 과정
-
-```javascript
-// 1. 드래프트 시작 (호스트만 가능)
-const startDraft = () => {
-  socket.emit("start_draft", {}, (response) => {
-    console.log(response.message);
-  });
-};
-
-// 2. 챔피언 선택
-const selectChampion = (championName) => {
-  socket.emit(
-    "select_champion",
-    {
-      champion: championName,
-    },
-    (response) => {
-      console.log(response.message);
-    }
-  );
-};
-
-// 3. 선택 확정
-const confirmSelection = () => {
-  socket.emit("confirm_selection", {}, (response) => {
-    console.log(response.message);
-  });
-};
-
-// 4. 게임 결과 확정 (호스트만 가능)
-const confirmResult = (winner) => {
-  // 'blue' or 'red'
-  socket.emit("confirm_result", { winner }, (response) => {
-    console.log(response.message);
-  });
-};
-```
-
-### 이벤트 수신 처리
-
-```javascript
-// 다른 플레이어 참가
-socket.on("client_joined", (data) => {
-  console.log(`${data.nickname} joined as ${data.position}`);
-  // UI 업데이트
-});
-
-// 다른 플레이어 퇴장
-socket.on("client_left", (data) => {
-  console.log(`${data.nickname} left the game (position: ${data.position})`);
-  // UI 업데이트
-});
-
-// 포지션 변경
-socket.on("position_changed", (data) => {
-  console.log(
-    `${data.nickname} changed from ${data.oldPosition} to ${data.newPosition}`
-  );
-  // UI 업데이트
-});
-
-// 준비 상태 변경
-socket.on("ready_state_changed", (data) => {
-  console.log(`${data.nickname} ready state: ${data.isReady}`);
-  // UI 업데이트
-});
-
-// 드래프트 시작
-socket.on("draft_started", (data) => {
-  console.log(`Draft started by ${data.startedBy}`);
-  // UI를 드래프트 모드로 변경
-});
-
-// 챔피언 선택
-socket.on("champion_selected", (data) => {
-  console.log(
-    `${data.nickname} selected ${data.champion} in phase ${data.phase}`
-  );
-  // 챔피언 선택 UI 업데이트
-});
-
-// 페이즈 진행
-socket.on("phase_progressed", (data) => {
-  console.log(`Phase changed from ${data.fromPhase} to ${data.toPhase}`);
-  console.log(`Champion confirmed: ${data.confirmedChampion}`);
-  // 현재 턴 표시 업데이트
-});
-
-// 게임 결과 확정
-socket.on("game_result_confirmed", (data) => {
-  console.log(`Game winner: ${data.winner}`);
-  console.log(`Score: Blue ${data.blueScore} - ${data.redScore} Red`);
-  console.log(`Next set: ${data.nextSetNumber}`);
-  // 결과 화면 표시 또는 다음 세트 준비
-});
-```
-
-## 오류 처리
-
-### 연결 오류
-
-```javascript
-socket.on("connect_error", (error) => {
-  console.error("Connection error:", error);
-});
-
-socket.on("connect_timeout", () => {
-  console.error("Connection timeout");
-});
-```
-
-### 이벤트 오류
-
-```javascript
-socket.on("error", (error) => {
-  console.error("Socket error:", error);
-});
 ```
 
 ## 재연결 전략
 
-기본 재연결 설정:
+### 클라이언트 측 구현
+
+1. 소켓 ID와 클라이언트 ID를 로컬 스토리지에 저장
+2. 연결이 끊기면 자동으로 재연결 시도
+3. 재연결 시 이전 ID를 사용하여 게임 세션 복구
 
 ```javascript
-const socket = io("http://localhost:8000", {
-  transports: ["websocket"],
-  reconnection: true,
-  reconnectionAttempts: 5,
-  reconnectionDelay: 1000,
-  reconnectionDelayMax: 5000,
-  timeout: 20000,
+// 연결 상태 관리
+let isConnected = false;
+let reconnectAttempts = 0;
+const maxReconnectAttempts = 5;
+
+socket.on("connect", () => {
+  isConnected = true;
+  reconnectAttempts = 0;
+  console.log("서버에 연결됨");
 });
+
+socket.on("disconnect", () => {
+  isConnected = false;
+  console.log("연결이 끊어졌습니다. 재연결 시도 중...");
+
+  // 재연결 시도
+  attemptReconnect();
+});
+
+// 재연결 함수
+const attemptReconnect = () => {
+  if (reconnectAttempts >= maxReconnectAttempts) {
+    console.error("최대 재연결 시도 횟수를 초과했습니다.");
+    return;
+  }
+
+  reconnectAttempts++;
+
+  setTimeout(() => {
+    if (!isConnected) {
+      const prevSocketId = localStorage.getItem("socketId");
+      const gameCode = localStorage.getItem("gameCode");
+      const nickname = localStorage.getItem("nickname");
+      const position = localStorage.getItem("position");
+
+      if (gameCode && nickname) {
+        // 새 소켓 연결로 게임 재참가
+        socket.emit(
+          "join_game",
+          {
+            gameCode: gameCode,
+            nickname: nickname,
+            position: position || "spectator",
+            socketId: prevSocketId,
+          },
+          (response) => {
+            if (response.status === "success") {
+              console.log("게임에 성공적으로 재연결되었습니다");
+              localStorage.setItem("socketId", response.data.clientId);
+            } else {
+              console.error("재연결 실패:", response.message);
+              attemptReconnect(); // 다시 시도
+            }
+          }
+        );
+      }
+    }
+  }, 1000 * reconnectAttempts); // 지수적 백오프
+};
 ```
 
-재연결 이벤트 처리:
+### 서버 측 구현
+
+- 클라이언트가 연결 해제되면 일정 시간(예: 2분) 동안 자리 유지
+- 같은 닉네임과 이전 소켓 ID로 재연결 시 동일한 상태 복원
+- 시간 초과 후 자동으로 클라이언트 제거
+
+## 오류 처리
+
+### 일반적인 오류 유형
+
+| 오류 유형      | 설명                                                 | 해결 방법             |
+| -------------- | ---------------------------------------------------- | --------------------- |
+| 게임 코드 없음 | 존재하지 않는 게임 코드로 참가 시도                  | 올바른 게임 코드 확인 |
+| 닉네임 충돌    | 이미 사용 중인 닉네임으로 참가 시도                  | 다른 닉네임 사용      |
+| 포지션 충돌    | 이미 다른 클라이언트가 차지한 포지션                 | 다른 포지션 선택      |
+| 권한 오류      | 권한이 없는 작업 시도 (예: 비호스트의 드래프트 시작) | 권한 확인             |
+| 잘못된 상태    | 현재 게임 상태에서 허용되지 않는 작업                | 게임 상태 확인        |
+
+### 오류 응답 처리
 
 ```javascript
-socket.on("reconnect_attempt", (attemptNumber) => {
-  console.log(`Reconnection attempt ${attemptNumber}`);
-});
+socket.emit("join_game", payload, (response) => {
+  if (response.status === "error") {
+    // 오류 처리
+    console.error("게임 참가 오류:", response.message);
 
-socket.on("reconnect", (attemptNumber) => {
-  console.log(`Reconnected after ${attemptNumber} attempts`);
-});
-
-socket.on("reconnect_failed", () => {
-  console.error("Failed to reconnect");
+    switch (response.errorCode) {
+      case "GAME_NOT_FOUND":
+        alert("게임을 찾을 수 없습니다. 게임 코드를 확인해주세요.");
+        break;
+      case "NICKNAME_TAKEN":
+        alert("이미 사용 중인 닉네임입니다. 다른 닉네임을 사용해주세요.");
+        break;
+      case "POSITION_TAKEN":
+        alert(
+          "이미 다른 플레이어가 선택한 포지션입니다. 다른 포지션을 선택해주세요."
+        );
+        break;
+      default:
+        alert("오류가 발생했습니다: " + response.message);
+    }
+  } else {
+    // 성공 처리
+    console.log("게임 참가 성공:", response.data);
+  }
 });
 ```
 
 ## 설치 및 참고사항
 
-프론트엔드에서 Socket.IO 클라이언트 라이브러리를 설치:
+### 클라이언트 설치
 
 ```bash
+# npm 사용
 npm install socket.io-client
-# or
+
+# yarn 사용
 yarn add socket.io-client
-# or
-pnpm add socket.io-client
 ```
 
-1. 서버는 루트 경로('/')에 마운트되어 있어 별도의 path 설정이 필요하지 않습니다
-2. 기본적으로 모든 origin에서의 접근이 허용됩니다 (개발 환경 기준)
-3. WebSocket transport를 사용하여 실시간 양방향 통신이 가능합니다
-4. 연결 성공 시 `connection_success` 이벤트를 통해 서버에서 socket id를 전달받습니다
-5. 프로덕션 환경에서는 보안을 위해 허용된 origin을 명시적으로 설정해야 합니다
+### 서버 설치
+
+```bash
+# npm 사용
+npm install socket.io
+
+# yarn 사용
+yarn add socket.io
+
+# pip 사용 (Python)
+pip install python-socketio
+```
+
+### 보안 고려사항
+
+- 서버는 게임 코드 생성 시 예측 불가능한 방식 사용
+- 클라이언트 인증을 위한 토큰 시스템 고려
+- CORS 설정으로 허용된 도메인에서만 연결 가능
 
 ## 베스트오브 경기
 

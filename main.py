@@ -1,23 +1,54 @@
-from fastapi import FastAPI
+import os
+import platform
+from datetime import datetime
+from fastapi import FastAPI, HTTPException
 from routes import game_routes
 from services.socket_service import SocketService
 from starlette.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="LoL Draft Server")
 
-# Add CORS middleware
+# CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins in development
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(game_routes.router)
+# 라우터 등록 - API 라우터는 /api 접두사로 등록하고, 기존 경로도 유지
+app.include_router(game_routes.router)  # 기존 경로 유지 
+app.include_router(game_routes.router, prefix="/api")  # /api 접두사 추가
 
-# Setup Socket.IO at the root path
+# Socket.IO 서비스 설정
 socket_service = SocketService()
-socket_service.game_service = game_routes.game_service  # Link to the game service
+game_routes.game_service.socket_service = socket_service
+socket_service.game_service = game_routes.game_service
+
+# Socket.IO 앱 마운트
 app.mount("/", socket_service.setup())
+
+# Health check endpoint
+@app.get("/ping")
+async def ping():
+    """Simple health check endpoint to verify server is responding"""
+    return {
+        "status": "ok",
+        "timestamp": datetime.now().isoformat(),
+        "environment": os.environ.get("ENVIRONMENT", "development"),
+        "python_version": platform.python_version(),
+        "message": "LoL Draft Server is running"
+    }
+
+@app.get("/games/{game_code}")
+async def get_game(game_code: str):
+    """게임 정보를 반환합니다."""
+    try:
+        game_info = game_routes.game_service.get_game(game_code)
+        return game_info
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        print(f"Error in get_game endpoint: {e}")
+        raise HTTPException(status_code=500, detail="게임 정보를 불러오는데 실패했습니다.")

@@ -4,7 +4,7 @@ from typing import Literal, List, Optional
 class GameSetting(BaseModel):
     version: str
     draftType: Literal["tournament", "hardFearless", "softFearless"]
-    playerType: Literal["single", "1v1", "5v5"]
+    playerType: Literal["single", "1v1"]
     matchFormat: Literal["bo1", "bo3", "bo5"]
     timeLimit: bool
     globalBans: Optional[List[str]] = []  # Added globalBans field
