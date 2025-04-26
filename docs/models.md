@@ -24,7 +24,7 @@
 | ----------- | ------------ | --------------------------------------------------- |
 | version     | string       | 리그오브레전드 패치버전 (default: "13.24.1")        |
 | draftType   | string       | "tournament" / "hardFearless" / "softFearless"      |
-| playerType  | string       | "single" / "1v1" / "5v5"                            |
+| playerType  | string       | "single" / "1v1"                                    |
 | matchFormat | string       | "bo1" / "bo3" / "bo5"                               |
 | timeLimit   | boolean      | true / false                                        |
 | globalBans  | string array | 게임 전체에서 사용 불가능한 챔피언 목록 (선택 사항) |
@@ -152,7 +152,6 @@ Phase는 0에서 21까지 순차적으로 진행되며, 각 단계는 다음을 
 
 - 1인 모드: "" (대기 상황 없이 바로 시작)
 - 1v1 모드: "xvy" 형식
-- 5v5 모드: "xxxxxvyyyyy" 형식
 
 ### Phase 1-6: 1차 밴픽 페이즈 (각 팀 3밴)
 
@@ -218,11 +217,6 @@ playerType에 따른 유효한 position 값:
 2. 1v1 모드
 
    - 유효값: "blue1", "red1", "spectator"
-
-3. 5v5 모드
-   - 블루팀: "blue1" ~ "blue5"
-   - 레드팀: "red1" ~ "red5"
-   - 관전자: "spectator"
 
 ## Examples
 
