@@ -5,7 +5,7 @@ from datetime import datetime
 class GameSetting(BaseModel):
     version: str = "13.24.1"
     draftType: str = "tournament"
-    playerType: str = "1v1"  # "single", "1v1", "5v5"
+    playerType: str = "1v1"  # "single", "1v1"
     matchFormat: str = "bo1"  # "bo1", "bo3", "bo5"
     timeLimit: bool = False
     globalBans: List[str] = []

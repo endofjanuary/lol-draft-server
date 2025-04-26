@@ -41,7 +41,6 @@ class SocketService:
         valid_positions = {
             'single': ['all'],
             '1v1': ['blue1', 'red1'],
-            '5v5': [f'blue{i}' for i in range(1, 6)] + [f'red{i}' for i in range(1, 6)]
         }
         
         return position in valid_positions.get(game_settings.playerType, [])
@@ -122,20 +121,6 @@ class SocketService:
             blue_ready = any(c.get('position') == "blue1" and c.get('isReady') for c in game_clients)
             red_ready = any(c.get('position') == "red1" and c.get('isReady') for c in game_clients)
             return blue_ready and red_ready
-
-        elif player_type == "5v5":
-            # Need all 5 positions filled and ready for both teams
-            blue_positions = set(f"blue{i}" for i in range(1, 6))
-            red_positions = set(f"red{i}" for i in range(1, 6))
-            
-            filled_and_ready = set(
-                client.get('position')
-                for client in game_clients
-                if client.get('isReady')
-            )
-            
-            return (blue_positions.issubset(filled_and_ready) and 
-                   red_positions.issubset(filled_and_ready))
 
         return True  # For 'single' mode
 
