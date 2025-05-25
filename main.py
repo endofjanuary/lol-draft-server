@@ -8,13 +8,19 @@ from starlette.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="LoL Draft Server")
 
-# CORS 설정
+# CORS 설정 - Netlify 브랜치 도메인과 로컬 개발 환경만 허용
+cors_pattern = os.getenv(
+    "CORS_ORIGIN_REGEX",
+    r"https://.*--lol-draft\.netlify\.app|https://lol-draft\.netlify\.app|http://localhost:\d+"
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=cors_pattern,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    max_age=3600,
 )
 
 # 라우터 등록 - API 라우터는 /api 접두사로 등록하고, 기존 경로도 유지
@@ -38,7 +44,8 @@ async def ping():
         "timestamp": datetime.now().isoformat(),
         "environment": os.environ.get("ENVIRONMENT", "development"),
         "python_version": platform.python_version(),
-        "message": "LoL Draft Server is running"
+        "message": "LoL Draft Server is running",
+        "cors_pattern": cors_pattern  # CORS 패턴 정보 추가 (디버깅용)
     }
 
 @app.get("/games/{game_code}")
