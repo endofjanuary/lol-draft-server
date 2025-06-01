@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Request
 from models import Game, GameSetting, GameStatus
 from services.game_service import GameService
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 router = APIRouter()
 game_service = GameService()
@@ -39,9 +39,20 @@ class GameInfo(BaseModel):
     settings: GameSetting  # This already includes bannerImage
     status: GameStatus
     clients: List[ClientInfo] = []  # Added clients field with default empty list
-    blueScore: int = 0  # Add blue team score field
-    redScore: int = 0   # Add red team score field
+    team1Score: int = 0  # 기존 blueScore 대신
+    team2Score: int = 0  # 기존 redScore 대신
     bannerImage: Optional[str] = None  # Add explicit field for banner image
+
+class SideChoiceRequest(BaseModel):
+    choice: Literal["keep", "swap"]  # 진영 유지 또는 교체
+
+@router.post("/games/{game_code}/choose-side")
+async def choose_side(game_code: str, request: SideChoiceRequest):
+    """패배한 팀이 진영을 선택합니다."""
+    try:
+        return await game_service.handle_side_choice(game_code, request.choice)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/games/{game_code}")
 async def get_game(game_code: str):

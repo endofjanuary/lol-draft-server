@@ -1,39 +1,38 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any, Union
-from datetime import datetime
+from pydantic import BaseModel
+from typing import List, Optional, Literal
 
 class GameSetting(BaseModel):
-    version: str = "13.24.1"
-    draftType: str = "tournament"
-    playerType: str = "1v1"  # "single", "1v1"
-    matchFormat: str = "bo1"  # "bo1", "bo3", "bo5"
-    timeLimit: bool = False
-    globalBans: List[str] = []
+    version: str
+    draftType: Literal["tournament", "hardFearless", "softFearless"]
+    playerType: Literal["single", "1v1"]
+    matchFormat: Literal["bo1", "bo3", "bo5"]
+    timeLimit: bool
+    globalBans: Optional[List[str]] = []
     bannerImage: Optional[str] = None
-
-class GameStatus(BaseModel):
-    phase: int = 0
-    phaseData: List[str] = []
-    lastUpdatedAt: int = 0
-    setNumber: int = 1
-    blueTeamName: str = "Blue"
-    redTeamName: str = "Red"
-    blueScore: int = 0
-    redScore: int = 0
 
 class Game(BaseModel):
     gameCode: str
     createdAt: int
-    gameName: str = "New Game"
+    gameName: Optional[str] = "New Game"
+
+class GameStatus(BaseModel):
+    phase: int = 0
+    team1Name: str = "Team 1"
+    team2Name: str = "Team 2"
+    lastUpdatedAt: int
+    phaseData: List[str]
+    setNumber: int = 1
+    team1Side: str = "blue"    # Team 1의 현재 진영 (blue 또는 red)
+    team2Side: str = "red"     # Team 2의 현재 진영 (red 또는 blue)
+
+class GameResult(BaseModel):
+    team1Score: int = 0
+    team2Score: int = 0
+    results: List[List[str]] = []
+    sideChoices: List[str] = []
 
 class Client(dict):
     """클라이언트 정보를 저장하는 딕셔너리 클래스"""
     pass
-
-class GameResult(BaseModel):
-    """게임 결과를 저장하는 클래스"""
-    blueScore: int = 0
-    redScore: int = 0
-    results: List[List[str]] = []
 
 __all__ = ['Game', 'GameSetting', 'GameStatus', 'GameResult', 'Client']
