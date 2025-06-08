@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Dict
 
 class GameSetting(BaseModel):
     version: str
@@ -24,6 +24,7 @@ class GameStatus(BaseModel):
     setNumber: int = 1
     team1Side: str = "blue"    # Team 1의 현재 진영 (blue 또는 red)
     team2Side: str = "red"     # Team 2의 현재 진영 (red 또는 blue)
+    previousSetPicks: Optional[Dict[str, List[str]]] = {}  # 하드피어리스를 위한 이전 세트 픽 정보
 
 class GameResult(BaseModel):
     team1Score: int = 0

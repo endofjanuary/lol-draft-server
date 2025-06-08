@@ -550,6 +550,27 @@ class SocketService:
                 game_result.results.append([])
             
             game_result.results[game_status.setNumber - 1] = game_status.phaseData
+            
+            # 하드피어리스 모드인 경우, 현재 세트의 픽된 챔피언들을 저장
+            if game_settings.draftType == "hardFearless":
+                current_set_picks = []
+                # phaseData에서 픽 페이즈(7-12, 17-20)의 데이터만 추출
+                pick_phases = [7, 8, 9, 10, 11, 12, 17, 18, 19, 20]  # 픽 페이즈들
+                for phase_idx in pick_phases:
+                    if phase_idx <= len(game_status.phaseData) and game_status.phaseData[phase_idx - 1]:
+                        champion = game_status.phaseData[phase_idx - 1]
+                        if champion and champion.strip():  # 빈 문자열이 아닌 경우만
+                            current_set_picks.append(champion.strip())
+                
+                # previousSetPicks 초기화 (없는 경우)
+                if not hasattr(game_status, 'previousSetPicks') or game_status.previousSetPicks is None:
+                    game_status.previousSetPicks = {}
+                
+                # 현재 세트의 픽 정보 저장
+                set_key = f"set{game_status.setNumber}"
+                game_status.previousSetPicks[set_key] = current_set_picks
+                
+                print(f"하드피어리스: {set_key} 픽 정보 저장됨: {current_set_picks}")
 
             # Check if this is the final set
             if not self._is_final_set(game_result, game_settings.matchFormat):

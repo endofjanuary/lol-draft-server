@@ -161,6 +161,7 @@ class GameService:
                 'settings': {
                     'playerType': game_settings.playerType,
                     'matchFormat': game_settings.matchFormat,
+                    'draftType': game_settings.draftType,  # 하드피어리스 모드 확인을 위한 드래프트 타입
                     'version': game_settings.version,  # 버전 정보 추가
                     'timeLimit': game_settings.timeLimit,
                     'globalBans': game_settings.globalBans,
@@ -175,6 +176,7 @@ class GameService:
                     'team2Name': game_status.team2Name,
                     'team1Side': game_status.team1Side,
                     'team2Side': game_status.team2Side,
+                    'previousSetPicks': game_status.previousSetPicks or {},  # 하드피어리스를 위한 이전 세트 픽 정보
                     # 하위 호환성을 위한 블루/레드팀 이름 (현재 진영 기준)
                     'blueTeamName': game_status.team1Name if game_status.team1Side == "blue" else game_status.team2Name,
                     'redTeamName': game_status.team1Name if game_status.team1Side == "red" else game_status.team2Name,
