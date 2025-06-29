@@ -545,11 +545,12 @@ class SocketService:
                 else:
                     game_result.team1Score += 1
                 
-            # Store the phase data for this set in results
+            # Store the phase data for this set in results (깊은 복사로 저장)
             while len(game_result.results) < game_status.setNumber:
                 game_result.results.append([])
             
-            game_result.results[game_status.setNumber - 1] = game_status.phaseData
+            # 깊은 복사를 사용하여 phaseData 저장
+            game_result.results[game_status.setNumber - 1] = game_status.phaseData.copy()
             
             # 하드피어리스 모드인 경우, 현재 세트의 픽된 챔피언들을 저장
             if game_settings.draftType == "hardFearless":
@@ -599,8 +600,13 @@ class SocketService:
                 # Final set - match finished
                 game_status.phase = 23  # 매치 완료 페이즈
                 game_status.lastUpdatedAt = self._get_timestamp()
+                
+                # 게임 상태와 결과를 먼저 저장
                 self.game_service.game_status[game_code] = game_status
                 self.game_service.game_results[game_code] = game_result
+                
+                # 저장 완료 후 이벤트 전송
+                print(f"Final game result saved: {game_code}, Results count: {len(game_result.results)}")
                 
                 await self.sio.emit('match_finished', {
                     'gameCode': game_code,
@@ -609,6 +615,7 @@ class SocketService:
                         'team1': game_result.team1Score,
                         'team2': game_result.team2Score
                     },
+                    'resultsCount': len(game_result.results),  # 디버깅을 위한 결과 개수 추가
                     'timestamp': game_status.lastUpdatedAt
                 }, room=game_code)
 

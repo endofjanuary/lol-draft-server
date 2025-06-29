@@ -155,6 +155,15 @@ class GameService:
             team1_score = game_result.team1Score if game_result else 0
             team2_score = game_result.team2Score if game_result else 0
             
+            # 게임 결과 세부 정보 (각 세트별 데이터)
+            results = game_result.results if game_result else []
+            
+            # 디버깅을 위한 로그
+            print(f"get_game for {game_code}: Results count = {len(results)}")
+            if results:
+                for i, result in enumerate(results):
+                    print(f"  Set {i+1}: {len(result)} phases, Winner: {result[21] if len(result) > 21 else 'None'}")
+            
             # 게임 정보를 구성합니다
             game_info = {
                 'code': game_code,
@@ -184,6 +193,7 @@ class GameService:
                 'clients': clients,
                 'team1Score': team1_score,
                 'team2Score': team2_score,
+                'results': results,  # 각 세트별 결과 데이터 추가
                 # 하위 호환성을 위한 블루/레드 점수 (현재 진영 기준)
                 'blueScore': team1_score if game_status.team1Side == "blue" else team2_score,
                 'redScore': team1_score if game_status.team1Side == "red" else team2_score
