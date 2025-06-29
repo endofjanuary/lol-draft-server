@@ -175,6 +175,7 @@ class GameService:
                     'timeLimit': game_settings.timeLimit,
                     'globalBans': game_settings.globalBans,
                     'bannerImage': game_settings.bannerImage if hasattr(game_settings, 'bannerImage') else None,
+                    'gameName': self.games[game_code].gameName,
                 },
                 'status': {
                     'phase': game_status.phase,

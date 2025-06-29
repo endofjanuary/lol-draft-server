@@ -9,6 +9,7 @@ class GameSetting(BaseModel):
     timeLimit: bool
     globalBans: Optional[List[str]] = []
     bannerImage: Optional[str] = None
+    gameName: Optional[str] = "새로운 게임"
 
 class Game(BaseModel):
     gameCode: str
