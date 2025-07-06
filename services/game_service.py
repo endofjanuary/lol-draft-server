@@ -156,13 +156,22 @@ class GameService:
             team2_score = game_result.team2Score if game_result else 0
             
             # 게임 결과 세부 정보 (각 세트별 데이터)
-            results = game_result.results if game_result else []
+            results = []
+            if game_result and game_result.results:
+                for set_result in game_result.results:
+                    if set_result:  # None이 아닌 경우만 추가
+                        results.append({
+                            'phaseData': set_result.phaseData,
+                            'team1Side': set_result.team1Side,
+                            'team2Side': set_result.team2Side,
+                            'winner': set_result.winner
+                        })
             
             # 디버깅을 위한 로그
             print(f"get_game for {game_code}: Results count = {len(results)}")
             if results:
                 for i, result in enumerate(results):
-                    print(f"  Set {i+1}: {len(result)} phases, Winner: {result[21] if len(result) > 21 else 'None'}")
+                    print(f"  Set {i+1}: Winner: {result['winner']}, Team1Side: {result['team1Side']}, Team2Side: {result['team2Side']}")
             
             # 게임 정보를 구성합니다
             game_info = {

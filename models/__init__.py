@@ -27,14 +27,20 @@ class GameStatus(BaseModel):
     team2Side: str = "red"     # Team 2의 현재 진영 (red 또는 blue)
     previousSetPicks: Optional[Dict[str, List[str]]] = {}  # 하드피어리스를 위한 이전 세트 픽 정보
 
+class SetResult(BaseModel):
+    phaseData: List[str]
+    team1Side: str  # "blue" or "red"
+    team2Side: str  # "blue" or "red"
+    winner: str     # "team1" or "team2"
+
 class GameResult(BaseModel):
     team1Score: int = 0
     team2Score: int = 0
-    results: List[List[str]] = []
+    results: List[SetResult] = []
     sideChoices: List[str] = []
 
 class Client(dict):
     """클라이언트 정보를 저장하는 딕셔너리 클래스"""
     pass
 
-__all__ = ['Game', 'GameSetting', 'GameStatus', 'GameResult', 'Client']
+__all__ = ['Game', 'GameSetting', 'GameStatus', 'GameResult', 'SetResult', 'Client']

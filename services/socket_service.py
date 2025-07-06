@@ -522,35 +522,45 @@ class SocketService:
             if winner not in ['blue', 'red']:
                 return {"status": "error", "message": "승자 값이 잘못되었습니다. 'blue' 또는 'red'여야 합니다."}
 
-            # Record the winner in phase data
-            game_status.phaseData[21] = winner
+            # Convert winner from side-based to team-based
+            blue_team_info = self.game_service.get_current_blue_team_info(game_code)
+            
+            if winner == 'blue':
+                actual_winner = blue_team_info["team"]  # "team1" or "team2"
+            else:  # winner == 'red'
+                actual_winner = "team1" if blue_team_info["team"] == "team2" else "team2"
+            
+            # Record the actual team winner in phase data
+            game_status.phaseData[21] = actual_winner
             
             # Store current set result before resetting
             if game_code not in self.game_service.game_results:
                 from models import GameResult
                 self.game_service.game_results[game_code] = GameResult()
             
-            # Update score based on current sides
+            # Update score based on winning team
             game_result = self.game_service.game_results[game_code]
-            blue_team_info = self.game_service.get_current_blue_team_info(game_code)
             
-            if winner == 'blue':
-                if blue_team_info["team"] == "team1":
-                    game_result.team1Score += 1
-                else:
-                    game_result.team2Score += 1
-            else:  # winner == 'red'
-                if blue_team_info["team"] == "team1":
-                    game_result.team2Score += 1
-                else:
-                    game_result.team1Score += 1
+            if actual_winner == 'team1':
+                game_result.team1Score += 1
+            else:  # actual_winner == 'team2'
+                game_result.team2Score += 1
                 
-            # Store the phase data for this set in results (깊은 복사로 저장)
-            while len(game_result.results) < game_status.setNumber:
-                game_result.results.append([])
+            # Store the complete set result with side information
+            from models import SetResult
+            set_result = SetResult(
+                phaseData=game_status.phaseData.copy(),
+                team1Side=game_status.team1Side,
+                team2Side=game_status.team2Side,
+                winner=actual_winner
+            )
             
-            # 깊은 복사를 사용하여 phaseData 저장
-            game_result.results[game_status.setNumber - 1] = game_status.phaseData.copy()
+            # Ensure results list is large enough
+            while len(game_result.results) < game_status.setNumber:
+                game_result.results.append(None)
+            
+            # Store the SetResult object
+            game_result.results[game_status.setNumber - 1] = set_result
             
             # 하드피어리스 모드인 경우, 현재 세트의 픽된 챔피언들을 저장
             if game_settings.draftType == "hardFearless":
