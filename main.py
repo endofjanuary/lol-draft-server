@@ -67,3 +67,9 @@ async def get_game(game_code: str):
     except Exception as e:
         print(f"Error in get_game endpoint: {e}")
         raise HTTPException(status_code=500, detail="게임 정보를 불러오는데 실패했습니다.")
+
+# Railway 배포를 위한 실행 코드
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
