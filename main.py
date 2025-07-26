@@ -31,19 +31,7 @@ app.add_middleware(
     max_age=3600,
 )
 
-# 라우터 등록 - API 라우터는 /api 접두사로 등록하고, 기존 경로도 유지
-app.include_router(game_routes.router)  # 기존 경로 유지 
-app.include_router(game_routes.router, prefix="/api")  # /api 접두사 추가
-
-# Socket.IO 서비스 설정
-socket_service = SocketService()
-game_routes.game_service.socket_service = socket_service
-socket_service.game_service = game_routes.game_service
-
-# Socket.IO 앱 마운트
-app.mount("/", socket_service.setup())
-
-# Health check endpoint
+# Health check endpoint (Socket.IO 마운트 이전에 정의)
 @app.get("/ping")
 async def ping():
     """Simple health check endpoint to verify server is responding"""
@@ -67,3 +55,15 @@ async def get_game(game_code: str):
     except Exception as e:
         print(f"Error in get_game endpoint: {e}")
         raise HTTPException(status_code=500, detail="게임 정보를 불러오는데 실패했습니다.")
+
+# 라우터 등록 - API 라우터는 /api 접두사로 등록하고, 기존 경로도 유지
+app.include_router(game_routes.router)  # 기존 경로 유지 
+app.include_router(game_routes.router, prefix="/api")  # /api 접두사 추가
+
+# Socket.IO 서비스 설정
+socket_service = SocketService()
+game_routes.game_service.socket_service = socket_service
+socket_service.game_service = game_routes.game_service
+
+# Socket.IO 앱 마운트 (원래 경로 유지)
+app.mount("/", socket_service.setup())
